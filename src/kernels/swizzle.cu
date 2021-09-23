@@ -261,6 +261,7 @@ __device__ void doCompute(int numGates, int* loArr, int* shiftAt) {
                     CASE_CONTROL(CRY, RYSingle(lo, hi, deviceGates[i].r00, deviceGates[i].r10))
                     CASE_CONTROL(CU1, U1Hi(hi, make_qComplex(deviceGates[i].r11, deviceGates[i].i11)))
                     CASE_CONTROL(CRZ, RZSingle(lo, hi, deviceGates[i].r00, -deviceGates[i].i00))
+                    CASE_CONTROL(CU, USingle(lo, hi, make_qComplex(deviceGates[i].r00, deviceGates[i].i00), make_qComplex(deviceGates[i].r01, deviceGates[i].i01), make_qComplex(deviceGates[i].r10, deviceGates[i].i10), make_qComplex(deviceGates[i].r11, deviceGates[i].i11)))
                     default: {
                         assert(false);
                     }
@@ -330,6 +331,8 @@ __device__ void doCompute(int numGates, int* loArr, int* shiftAt) {
                     FOLLOW_NEXT(CU1)
                     CASE_SINGLE(U1, U1Hi(hi, make_qComplex(deviceGates[i].r11, deviceGates[i].i11)))
                     FOLLOW_NEXT(U2)
+                    FOLLOW_NEXT(U)
+                    FOLLOW_NEXT(CU)
                     CASE_SINGLE(U3, USingle(lo, hi, make_qComplex(deviceGates[i].r00, deviceGates[i].i00), make_qComplex(deviceGates[i].r01, deviceGates[i].i01), make_qComplex(deviceGates[i].r10, deviceGates[i].i10), make_qComplex(deviceGates[i].r11, deviceGates[i].i11)));
                     CASE_SINGLE(H, HSingle(lo, hi))
                     FOLLOW_NEXT(X)

@@ -106,6 +106,17 @@ Gate Gate::CRZ(int controlQubit, int targetQubit, qreal angle) {
     return g;
 }
 
+Gate Gate::CU(int controlQubit, int targetQubit, std::vector<qComplex> params) {
+    Gate g;
+    g.gateID = ++globalGateID;
+    g.type = GateType::CU;
+    g.mat[0][0] = params[0]; g.mat[0][1] = params[1];
+    g.mat[1][0] = params[2]; g.mat[1][1] = params[3];
+    g.name = "CU";
+    g.targetQubit = targetQubit;
+    g.controlQubit = controlQubit;
+    return g;
+}
 
 Gate Gate::U1(int targetQubit, qreal lambda) {
     Gate g;
@@ -144,6 +155,18 @@ Gate Gate::U3(int targetQubit, qreal theta, qreal phi, qreal lambda) {
     g.mat[1][0] = make_qComplex(cos(phi) * sin(theta / 2), sin(phi) * sin(theta / 2));
     g.mat[1][1] = make_qComplex(cos(phi + lambda) * cos(theta / 2), sin(phi + lambda) * cos(theta / 2));
     g.name = "U3";
+    g.targetQubit = targetQubit;
+    g.controlQubit = -1;
+    return g;
+}
+
+Gate Gate::U(int targetQubit, std::vector<qComplex> params) {
+    Gate g;
+    g.gateID = ++ globalGateID;
+    g.type = GateType::U;
+    g.mat[0][0] = params[0]; g.mat[0][1] = params[1];
+    g.mat[1][0] = params[2]; g.mat[1][1] = params[3];
+    g.name = "U";
     g.targetQubit = targetQubit;
     g.controlQubit = -1;
     return g;
@@ -413,6 +436,17 @@ Gate Gate::random(int lo, int hi, GateType type) {
             gen_c1_id(t, c1);
             return CRZ(c1, t, gen_0_2pi_float());
         }
+        case GateType::CU: {
+            int t, c1;
+            gen_c1_id(t, c1);
+            std::vector<qComplex> param = {
+                make_qComplex(gen_0_2pi_float(), gen_0_2pi_float()),
+                make_qComplex(gen_0_2pi_float(), gen_0_2pi_float()),
+                make_qComplex(gen_0_2pi_float(), gen_0_2pi_float()),
+                make_qComplex(gen_0_2pi_float(), gen_0_2pi_float())
+            };
+            return CU(c1, t, param);
+        }
         case GateType::U1: {
             int t;
             gen_single_id(t);
@@ -427,6 +461,17 @@ Gate Gate::random(int lo, int hi, GateType type) {
             int t;
             gen_single_id(t);
             return U3(t, gen_0_2pi_float(), gen_0_2pi_float(), gen_0_2pi_float());
+        }
+        case GateType::U: {
+            int t;
+            gen_single_id(t);
+            std::vector<qComplex> param = {
+                make_qComplex(gen_0_2pi_float(), gen_0_2pi_float()),
+                make_qComplex(gen_0_2pi_float(), gen_0_2pi_float()),
+                make_qComplex(gen_0_2pi_float(), gen_0_2pi_float()),
+                make_qComplex(gen_0_2pi_float(), gen_0_2pi_float())
+            };
+            return U(t, param);
         }
         case GateType::H: {
             int t;

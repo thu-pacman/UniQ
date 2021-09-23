@@ -5,7 +5,7 @@
 #include "utils.h"
 
 enum class GateType {
-    CCX, CNOT, CY, CZ, CRX, CRY, CU1, CRZ, U1, U2, U3, H, X, Y, Z, S, SDG, T, TDG, RX, RY, RZ, TOTAL, ID, GII, GZZ, GOC, GCC 
+    CCX, CNOT, CY, CZ, CRX, CRY, CU1, CRZ, CU, U1, U2, U3, U, H, X, Y, Z, S, SDG, T, TDG, RX, RY, RZ, TOTAL, ID, GII, GZZ, GOC, GCC 
 };
 
 struct Gate {
@@ -35,9 +35,11 @@ struct Gate {
     static Gate CRY(int controlQubit, int targetQubit, qreal angle);
     static Gate CU1(int controlQubit, int targetQubit, qreal lambda);
     static Gate CRZ(int controlQubit, int targetQubit, qreal angle);
+    static Gate CU(int controlQubit, int targetQubit, std::vector<qComplex> params);
     static Gate U1(int targetQubit, qreal lambda);
     static Gate U2(int targetQubit, qreal phi, qreal lambda);
     static Gate U3(int targetQubit, qreal theta, qreal phi, qreal lambda);
+    static Gate U(int targetQubit, std::vector<qComplex> params);
     static Gate H(int targetQubit);
     static Gate X(int targetQubit);
     static Gate Y(int targetQubit);

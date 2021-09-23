@@ -70,6 +70,7 @@ void Evaluator::loadParam(int numQubits) {
         loadPergateSingle(numQubits, qbit_param, GateType::U1);
         loadPergateSingle(numQubits, qbit_param, GateType::U2);
         loadPergateSingle(numQubits, qbit_param, GateType::U3);
+        loadPergateSingle(numQubits, qbit_param, GateType::U);
         loadPergateSingle(numQubits, qbit_param, GateType::H );
         loadPergateSingle(numQubits, qbit_param, GateType::X );
         loadPergateSingle(numQubits, qbit_param, GateType::Y );
@@ -89,6 +90,7 @@ void Evaluator::loadParam(int numQubits) {
         loadPergateCtr(numQubits, qbit_param, GateType::CRY );
         loadPergateCtr(numQubits, qbit_param, GateType::CU1 );
         loadPergateCtr(numQubits, qbit_param, GateType::CRZ );
+        loadPergateCtr(numQubits, qbit_param, GateType::CU );
 
         for (int K = 1, i = 0; K < 1024; K <<= 1, i++) {
             fscanf(qbit_param, "%*d%lf", &BLAS_perf[numQubits][i]);
@@ -129,12 +131,16 @@ double Evaluator::perfPerGate(int numQubits, const GateGroup* gg) {
                 tim_pred += pergate_ctr_perf[numQubits][int(GateType::CU1)][0][2]; break;
             case GateType::CRZ : 
                 tim_pred += pergate_ctr_perf[numQubits][int(GateType::CRZ)][0][2]; break;
+            case GateType::CU : 
+                tim_pred += pergate_ctr_perf[numQubits][int(GateType::CU)][0][2]; break;
             case GateType::U1 : 
                 tim_pred += pergate_single_perf[numQubits][int(GateType::U1)][1]; break;
             case GateType::U2 : 
                 tim_pred += pergate_single_perf[numQubits][int(GateType::U2)][1]; break;
             case GateType::U3 : 
                 tim_pred += pergate_single_perf[numQubits][int(GateType::U3)][1]; break;
+            case GateType::U : 
+                tim_pred += pergate_single_perf[numQubits][int(GateType::U)][1]; break;
             case GateType::H : 
                 tim_pred += pergate_single_perf[numQubits][int(GateType::H)][1]; break;
             case GateType::X : 
@@ -186,12 +192,16 @@ double Evaluator::perfPerGate(int numQubits, const std::vector<GateType>& types)
                 tim_pred += pergate_ctr_perf[numQubits][int(GateType::CU1)][0][2]; break;
             case GateType::CRZ : 
                 tim_pred += pergate_ctr_perf[numQubits][int(GateType::CRZ)][0][2]; break;
+            case GateType::CU : 
+                tim_pred += pergate_ctr_perf[numQubits][int(GateType::CU)][0][2]; break;
             case GateType::U1 : 
                 tim_pred += pergate_single_perf[numQubits][int(GateType::U1)][1]; break;
             case GateType::U2 : 
                 tim_pred += pergate_single_perf[numQubits][int(GateType::U2)][1]; break;
             case GateType::U3 : 
                 tim_pred += pergate_single_perf[numQubits][int(GateType::U3)][1]; break;
+            case GateType::U : 
+                tim_pred += pergate_single_perf[numQubits][int(GateType::U)][1]; break;
             case GateType::H : 
                 tim_pred += pergate_single_perf[numQubits][int(GateType::H)][1]; break;
             case GateType::X : 
