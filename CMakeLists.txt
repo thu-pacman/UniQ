@@ -105,6 +105,10 @@ if (NOT ${INPLACE} EQUAL "0" AND ${ENABLE_OVERLAP})
     MESSAGE(FATAL_ERROR "Do not support INPLACE and ENABLE_OVERLAP simultaneously")
 endif()
 
+if (NOT ${INPLACE} EQUAL "0" AND NOT ${BACKEND} EQUAL "group")
+    MESSAGE(FATAL_ERROR "Only allow group BACKEND when INPLACE is enabled. INPLACE communication cannot save memory when using blas backend or mix backend")
+endif()
+
 if (EVALUATOR_PREPROCESS)
     set(PROCESS process)
     add_executable(process evaluator-preprocess/process.cpp)
