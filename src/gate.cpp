@@ -591,6 +591,8 @@ GateType Gate::toU(GateType type) {
             return GateType::U1;
         case GateType::CRZ:
             return GateType::RZ;
+        case GateType::CU:
+            return GateType::U;
         default:
             UNREACHABLE()
     }

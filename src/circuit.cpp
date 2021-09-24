@@ -125,9 +125,9 @@ qComplex Circuit::ampAtGPU(qindex idx) {
     qindex rankID = id / localAmps;
 
     if (!USE_MPI || MyMPI::rank == rankID) {
-        int localID = id % localAmps;
+        qindex localID = id % localAmps;
 #else
-        int localID = id;
+        qindex localID = id;
 #endif
         qindex localGPUAmp = (1ll << numQubits) / MyGlobalVars::numGPUs;
         int gpuID = localID / localGPUAmp;
