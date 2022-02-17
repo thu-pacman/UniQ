@@ -8,10 +8,10 @@
 #include "dbg.h"
 using namespace std;
 
-extern __shared__ qComplex shm[1<<LOCAL_QUBIT_SIZE];
-extern __shared__ qindex blockBias;
+extern __shared__ cuCpx shm[1<<LOCAL_QUBIT_SIZE];
+extern __shared__ idx_t blockBias;
 
-__device__ __constant__ qreal recRoot2 = 0.70710678118654752440084436210485; // more elegant way?
+__device__ __constant__ value_t recRoot2 = 0.70710678118654752440084436210485; // more elegant way?
 __constant__ KernelGate deviceGates[MAX_GATE];
 
 std::vector<int*> loIdx_device;
@@ -19,133 +19,133 @@ std::vector<int*> shiftAt_device;
 
 
 __device__ __forceinline__ void XSingle(int loIdx, int hiIdx) {
-    qComplex v = shm[loIdx];
+    cuCpx v = shm[loIdx];
     shm[loIdx] = shm[hiIdx];
     shm[hiIdx] = v;
 }
 
 __device__ __forceinline__ void YSingle(int loIdx, int hiIdx) {
-    qComplex lo = shm[loIdx];
-    qComplex hi = shm[hiIdx];
+    cuCpx lo = shm[loIdx];
+    cuCpx hi = shm[hiIdx];
     
-    shm[loIdx] = make_qComplex(hi.y, -hi.x);
-    shm[hiIdx] = make_qComplex(-lo.y, lo.x);
+    shm[loIdx] = make_cuComplex(hi.y, -hi.x);
+    shm[hiIdx] = make_cuComplex(-lo.y, lo.x);
 }
 
 __device__ __forceinline__ void ZHi(int hiIdx) {
-    qComplex v = shm[hiIdx];
-    shm[hiIdx] = make_qComplex(-v.x, -v.y);
+    cuCpx v = shm[hiIdx];
+    shm[hiIdx] = make_cuComplex(-v.x, -v.y);
 }
 
 
-__device__ __forceinline__ void RXSingle(int loIdx, int hiIdx, qreal alpha, qreal beta) {
-    qComplex lo = shm[loIdx];
-    qComplex hi = shm[hiIdx];
-    shm[loIdx] = make_qComplex(alpha * lo.x + beta * hi.y, alpha * lo.y - beta * hi.x);
-    shm[hiIdx] = make_qComplex(alpha * hi.x + beta * lo.y, alpha * hi.y - beta * lo.x);
+__device__ __forceinline__ void RXSingle(int loIdx, int hiIdx, value_t alpha, value_t beta) {
+    cuCpx lo = shm[loIdx];
+    cuCpx hi = shm[hiIdx];
+    shm[loIdx] = make_cuComplex(alpha * lo.x + beta * hi.y, alpha * lo.y - beta * hi.x);
+    shm[hiIdx] = make_cuComplex(alpha * hi.x + beta * lo.y, alpha * hi.y - beta * lo.x);
 }
 
-__device__ __forceinline__ void RYSingle(int loIdx, int hiIdx, qreal alpha, qreal beta) {
-    qComplex lo = shm[loIdx];
-    qComplex hi = shm[hiIdx];
-    shm[loIdx] = make_qComplex(alpha * lo.x - beta * hi.x, alpha * lo.y - beta * hi.y);
-    shm[hiIdx] = make_qComplex(beta * lo.x + alpha * hi.x, beta * lo.y + alpha * hi.y);
+__device__ __forceinline__ void RYSingle(int loIdx, int hiIdx, value_t alpha, value_t beta) {
+    cuCpx lo = shm[loIdx];
+    cuCpx hi = shm[hiIdx];
+    shm[loIdx] = make_cuComplex(alpha * lo.x - beta * hi.x, alpha * lo.y - beta * hi.y);
+    shm[hiIdx] = make_cuComplex(beta * lo.x + alpha * hi.x, beta * lo.y + alpha * hi.y);
 }
 
-__device__ __forceinline__ void RZSingle(int loIdx, int hiIdx, qreal alpha, qreal beta){
-    qComplex lo = shm[loIdx];
-    qComplex hi = shm[hiIdx];
-    shm[loIdx] = make_qComplex(alpha * lo.x + beta * lo.y, alpha * lo.y - beta * lo.x);
-    shm[hiIdx] = make_qComplex(alpha * hi.x - beta * hi.y, alpha * hi.y + beta * hi.x);
+__device__ __forceinline__ void RZSingle(int loIdx, int hiIdx, value_t alpha, value_t beta){
+    cuCpx lo = shm[loIdx];
+    cuCpx hi = shm[hiIdx];
+    shm[loIdx] = make_cuComplex(alpha * lo.x + beta * lo.y, alpha * lo.y - beta * lo.x);
+    shm[hiIdx] = make_cuComplex(alpha * hi.x - beta * hi.y, alpha * hi.y + beta * hi.x);
 }
 
-__device__ __forceinline__ void RZLo(int loIdx, qreal alpha, qreal beta) {
-    qComplex lo = shm[loIdx];
-    shm[loIdx] = make_qComplex(alpha * lo.x + beta * lo.y, alpha * lo.y - beta * lo.x);
+__device__ __forceinline__ void RZLo(int loIdx, value_t alpha, value_t beta) {
+    cuCpx lo = shm[loIdx];
+    shm[loIdx] = make_cuComplex(alpha * lo.x + beta * lo.y, alpha * lo.y - beta * lo.x);
 }
 
-__device__ __forceinline__ void RZHi(int hiIdx, qreal alpha, qreal beta){
-    qComplex hi = shm[hiIdx];
-    shm[hiIdx] = make_qComplex(alpha * hi.x - beta * hi.y, alpha * hi.y + beta * hi.x);
+__device__ __forceinline__ void RZHi(int hiIdx, value_t alpha, value_t beta){
+    cuCpx hi = shm[hiIdx];
+    shm[hiIdx] = make_cuComplex(alpha * hi.x - beta * hi.y, alpha * hi.y + beta * hi.x);
 }
 
 #define COMPLEX_MULTIPLY_REAL(v0, v1) (v0.x * v1.x - v0.y * v1.y)
 #define COMPLEX_MULTIPLY_IMAG(v0, v1) (v0.x * v1.y + v0.y * v1.x)
 
-__device__ __forceinline__ void U1Hi(int hiIdx, qComplex p) {
-    qComplex hi = shm[hiIdx];
-    shm[hiIdx] = make_qComplex(COMPLEX_MULTIPLY_REAL(hi, p), COMPLEX_MULTIPLY_IMAG(hi, p));
+__device__ __forceinline__ void U1Hi(int hiIdx, cuCpx p) {
+    cuCpx hi = shm[hiIdx];
+    shm[hiIdx] = make_cuComplex(COMPLEX_MULTIPLY_REAL(hi, p), COMPLEX_MULTIPLY_IMAG(hi, p));
 }
 
-__device__ __forceinline__ void USingle(int loIdx, int hiIdx, qComplex v00, qComplex v01, qComplex v10, qComplex v11) {
-    qComplex lo = shm[loIdx];
-    qComplex hi = shm[hiIdx];
-    shm[loIdx] = make_qComplex(COMPLEX_MULTIPLY_REAL(lo, v00) + COMPLEX_MULTIPLY_REAL(hi, v01),
+__device__ __forceinline__ void USingle(int loIdx, int hiIdx, cuCpx v00, cuCpx v01, cuCpx v10, cuCpx v11) {
+    cuCpx lo = shm[loIdx];
+    cuCpx hi = shm[hiIdx];
+    shm[loIdx] = make_cuComplex(COMPLEX_MULTIPLY_REAL(lo, v00) + COMPLEX_MULTIPLY_REAL(hi, v01),
                                COMPLEX_MULTIPLY_IMAG(lo, v00) + COMPLEX_MULTIPLY_IMAG(hi, v01));
-    shm[hiIdx] = make_qComplex(COMPLEX_MULTIPLY_REAL(lo, v10) + COMPLEX_MULTIPLY_REAL(hi, v11),
+    shm[hiIdx] = make_cuComplex(COMPLEX_MULTIPLY_REAL(lo, v10) + COMPLEX_MULTIPLY_REAL(hi, v11),
                                COMPLEX_MULTIPLY_IMAG(lo, v10) + COMPLEX_MULTIPLY_IMAG(hi, v11));
 }
 
 __device__ __forceinline__ void HSingle(int loIdx, int hiIdx) {
-    qComplex lo = shm[loIdx];
-    qComplex hi = shm[hiIdx];
-    shm[loIdx] = make_qComplex(recRoot2 * (lo.x + hi.x), recRoot2 * (lo.y + hi.y));
-    shm[hiIdx] = make_qComplex(recRoot2 * (lo.x - hi.x), recRoot2 * (lo.y - hi.y));
+    cuCpx lo = shm[loIdx];
+    cuCpx hi = shm[hiIdx];
+    shm[loIdx] = make_cuComplex(recRoot2 * (lo.x + hi.x), recRoot2 * (lo.y + hi.y));
+    shm[hiIdx] = make_cuComplex(recRoot2 * (lo.x - hi.x), recRoot2 * (lo.y - hi.y));
 }
 
 __device__ __forceinline__ void SHi(int hiIdx) {
-    qComplex hi = shm[hiIdx];
-    shm[hiIdx] = make_qComplex(-hi.y, hi.x);
+    cuCpx hi = shm[hiIdx];
+    shm[hiIdx] = make_cuComplex(-hi.y, hi.x);
 }
 
 __device__ __forceinline__ void SDGHi(int hiIdx) {
-    qComplex hi = shm[hiIdx];
-    shm[hiIdx] = make_qComplex(hi.y, -hi.x);
+    cuCpx hi = shm[hiIdx];
+    shm[hiIdx] = make_cuComplex(hi.y, -hi.x);
 }
 
 __device__ __forceinline__ void THi(int hiIdx) {
-    qComplex hi = shm[hiIdx];
-    shm[hiIdx] = make_qComplex(recRoot2 * (hi.x - hi.y), recRoot2 * (hi.x + hi.y));
+    cuCpx hi = shm[hiIdx];
+    shm[hiIdx] = make_cuComplex(recRoot2 * (hi.x - hi.y), recRoot2 * (hi.x + hi.y));
 }
 
 __device__ __forceinline__ void TDGHi(int hiIdx) {
-    qComplex hi = shm[hiIdx];
-    shm[hiIdx] = make_qComplex(recRoot2 * (hi.x + hi.y), recRoot2 * (hi.x - hi.y));
+    cuCpx hi = shm[hiIdx];
+    shm[hiIdx] = make_cuComplex(recRoot2 * (hi.x + hi.y), recRoot2 * (hi.x - hi.y));
 }
 __device__ __forceinline__ void GIISingle(int loIdx, int hiIdx) {
-    qComplex lo = shm[loIdx];
-    shm[loIdx] = make_qComplex(-lo.y, lo.x);
-    qComplex hi = shm[hiIdx];
-    shm[hiIdx] = make_qComplex(-hi.y, hi.x);
+    cuCpx lo = shm[loIdx];
+    shm[loIdx] = make_cuComplex(-lo.y, lo.x);
+    cuCpx hi = shm[hiIdx];
+    shm[hiIdx] = make_cuComplex(-hi.y, hi.x);
 }
 
 __device__ __forceinline__ void GII(int idx) {
-    qComplex v = shm[idx];
-    shm[idx] = make_qComplex(-v.y, v.x);
+    cuCpx v = shm[idx];
+    shm[idx] = make_cuComplex(-v.y, v.x);
 }
 
 __device__ __forceinline__ void GZZSingle(int loIdx, int hiIdx) {
-    qComplex lo = shm[loIdx];
-    shm[loIdx] = make_qComplex(-lo.x, -lo.y);
-    qComplex hi = shm[hiIdx];
-    shm[hiIdx] = make_qComplex(-hi.x, -hi.y);
+    cuCpx lo = shm[loIdx];
+    shm[loIdx] = make_cuComplex(-lo.x, -lo.y);
+    cuCpx hi = shm[hiIdx];
+    shm[hiIdx] = make_cuComplex(-hi.x, -hi.y);
 }
 
 __device__ __forceinline__ void GZZ(int idx) { 
-    qComplex v = shm[idx];
-    shm[idx] = make_qComplex(-v.x, -v.y);
+    cuCpx v = shm[idx];
+    shm[idx] = make_cuComplex(-v.x, -v.y);
 }
 
-__device__ __forceinline__ void GCCSingle(int loIdx, int hiIdx, qComplex p) {
-    qComplex lo = shm[loIdx];
-    shm[loIdx] = make_qComplex(COMPLEX_MULTIPLY_REAL(lo, p), COMPLEX_MULTIPLY_IMAG(lo, p));
-    qComplex hi = shm[hiIdx];
-    shm[hiIdx] = make_qComplex(COMPLEX_MULTIPLY_REAL(hi, p), COMPLEX_MULTIPLY_IMAG(hi, p));
+__device__ __forceinline__ void GCCSingle(int loIdx, int hiIdx, cuCpx p) {
+    cuCpx lo = shm[loIdx];
+    shm[loIdx] = make_cuComplex(COMPLEX_MULTIPLY_REAL(lo, p), COMPLEX_MULTIPLY_IMAG(lo, p));
+    cuCpx hi = shm[hiIdx];
+    shm[hiIdx] = make_cuComplex(COMPLEX_MULTIPLY_REAL(hi, p), COMPLEX_MULTIPLY_IMAG(hi, p));
 }
 
-__device__ __forceinline__ void GCC(int idx, qComplex p) {
-    qComplex v = shm[idx];
-    shm[idx] = make_qComplex(COMPLEX_MULTIPLY_REAL(v, p), COMPLEX_MULTIPLY_IMAG(v, p));
+__device__ __forceinline__ void GCC(int idx, cuCpx p) {
+    cuCpx v = shm[idx];
+    shm[idx] = make_cuComplex(COMPLEX_MULTIPLY_REAL(v, p), COMPLEX_MULTIPLY_IMAG(v, p));
 }
 
 #define FOLLOW_NEXT(TYPE) \
@@ -259,9 +259,9 @@ __device__ void doCompute(int numGates, int* loArr, int* shiftAt) {
                     CASE_CONTROL(CZ, ZHi(hi))
                     CASE_CONTROL(CRX, RXSingle(lo, hi, deviceGates[i].r00, -deviceGates[i].i01))
                     CASE_CONTROL(CRY, RYSingle(lo, hi, deviceGates[i].r00, deviceGates[i].r10))
-                    CASE_CONTROL(CU1, U1Hi(hi, make_qComplex(deviceGates[i].r11, deviceGates[i].i11)))
+                    CASE_CONTROL(CU1, U1Hi(hi, make_cuComplex(deviceGates[i].r11, deviceGates[i].i11)))
                     CASE_CONTROL(CRZ, RZSingle(lo, hi, deviceGates[i].r00, -deviceGates[i].i00))
-                    CASE_CONTROL(CU, USingle(lo, hi, make_qComplex(deviceGates[i].r00, deviceGates[i].i00), make_qComplex(deviceGates[i].r01, deviceGates[i].i01), make_qComplex(deviceGates[i].r10, deviceGates[i].i10), make_qComplex(deviceGates[i].r11, deviceGates[i].i11)))
+                    CASE_CONTROL(CU, USingle(lo, hi, make_cuComplex(deviceGates[i].r00, deviceGates[i].i00), make_cuComplex(deviceGates[i].r01, deviceGates[i].i01), make_cuComplex(deviceGates[i].r10, deviceGates[i].i10), make_cuComplex(deviceGates[i].r11, deviceGates[i].i11)))
                     default: {
                         assert(false);
                     }
@@ -293,7 +293,7 @@ __device__ void doCompute(int numGates, int* loArr, int* shiftAt) {
                             for (int j = threadIdx.x; j < m; j += blockSize) {
                                 int x = ((j >> controlQubit) << (controlQubit + 1)) | (j & maskControl)  | (1 << controlQubit);
                                 x ^= x >> 3 & 7;
-                                U1Hi(x, make_qComplex(deviceGates[i].r11, deviceGates[i].i11));
+                                U1Hi(x, make_cuComplex(deviceGates[i].r11, deviceGates[i].i11));
                             }
                             break;
                         }
@@ -329,11 +329,11 @@ __device__ void doCompute(int numGates, int* loArr, int* shiftAt) {
                 switch (deviceGates[i].type) {
                     FOLLOW_NEXT(GOC)
                     FOLLOW_NEXT(CU1)
-                    CASE_SINGLE(U1, U1Hi(hi, make_qComplex(deviceGates[i].r11, deviceGates[i].i11)))
+                    CASE_SINGLE(U1, U1Hi(hi, make_cuComplex(deviceGates[i].r11, deviceGates[i].i11)))
                     FOLLOW_NEXT(U2)
                     FOLLOW_NEXT(U)
                     FOLLOW_NEXT(CU)
-                    CASE_SINGLE(U3, USingle(lo, hi, make_qComplex(deviceGates[i].r00, deviceGates[i].i00), make_qComplex(deviceGates[i].r01, deviceGates[i].i01), make_qComplex(deviceGates[i].r10, deviceGates[i].i10), make_qComplex(deviceGates[i].r11, deviceGates[i].i11)));
+                    CASE_SINGLE(U3, USingle(lo, hi, make_cuComplex(deviceGates[i].r00, deviceGates[i].i00), make_cuComplex(deviceGates[i].r01, deviceGates[i].i01), make_cuComplex(deviceGates[i].r10, deviceGates[i].i10), make_cuComplex(deviceGates[i].r11, deviceGates[i].i11)));
                     CASE_SINGLE(H, HSingle(lo, hi))
                     FOLLOW_NEXT(X)
                     FOLLOW_NEXT(CNOT)
@@ -354,7 +354,7 @@ __device__ void doCompute(int numGates, int* loArr, int* shiftAt) {
                     CASE_SINGLE(TDG, TDGHi(hi))
                     CASE_SINGLE(GII, GIISingle(lo, hi))
                     CASE_SINGLE(GZZ, GZZSingle(lo, hi))
-                    CASE_SINGLE(GCC, GCCSingle(lo, hi, make_qComplex(deviceGates[i].r00, deviceGates[i].i00)))
+                    CASE_SINGLE(GCC, GCCSingle(lo, hi, make_cuComplex(deviceGates[i].r00, deviceGates[i].i00)))
                     ID_BREAK()
                     default: {
                         assert(false);
@@ -373,10 +373,10 @@ __device__ void doCompute(int numGates, int* loArr, int* shiftAt) {
                     CASE_SKIPLO_HI(TDG, TDGHi(j))
                     FOLLOW_NEXT(GOC)
                     FOLLOW_NEXT(CU1)
-                    CASE_SKIPLO_HI(U1, U1Hi(j, make_qComplex(deviceGates[i].r11, deviceGates[i].i11)))
+                    CASE_SKIPLO_HI(U1, U1Hi(j, make_cuComplex(deviceGates[i].r11, deviceGates[i].i11)))
                     LOHI_SAME(GII, GII(j))
                     LOHI_SAME(GZZ, GZZ(j))
-                    LOHI_SAME(GCC, GCC(j, make_qComplex(deviceGates[i].r00, deviceGates[i].i00)))
+                    LOHI_SAME(GCC, GCC(j, make_cuComplex(deviceGates[i].r00, deviceGates[i].i00)))
                     ID_BREAK()
                     default: {
                         assert(false);
@@ -388,7 +388,7 @@ __device__ void doCompute(int numGates, int* loArr, int* shiftAt) {
     }
 }
 
-__device__ void fetchData(qComplex* a, unsigned int* threadBias, unsigned int idx, unsigned int blockHot, unsigned int enumerate, int numLocalQubits) {
+__device__ void fetchData(cuCpx* a, unsigned int* threadBias, unsigned int idx, unsigned int blockHot, unsigned int enumerate, int numLocalQubits) {
     if (threadIdx.x == 0) {
         int bid = blockIdx.x;
         unsigned int bias = 0;
@@ -413,7 +413,7 @@ __device__ void fetchData(qComplex* a, unsigned int* threadBias, unsigned int id
     }
 }
 
-__device__ void saveData(qComplex* a, unsigned int* threadBias, unsigned int enumerate) {
+__device__ void saveData(cuCpx* a, unsigned int* threadBias, unsigned int enumerate) {
     unsigned int bias = blockBias | threadBias[threadIdx.x];
     int x;
     unsigned y;
@@ -426,7 +426,7 @@ __device__ void saveData(qComplex* a, unsigned int* threadBias, unsigned int enu
 }
 
 template <unsigned int blockSize>
-__global__ void run(qComplex* a, unsigned int* threadBias, int* loArr, int* shiftAt, int numLocalQubits, int numGates, unsigned int blockHot, unsigned int enumerate) {
+__global__ void run(cuCpx* a, unsigned int* threadBias, int* loArr, int* shiftAt, int numLocalQubits, int numGates, unsigned int blockHot, unsigned int enumerate) {
     unsigned int idx = (unsigned int) blockIdx.x * blockSize + threadIdx.x;
     fetchData(a, threadBias, idx, blockHot, enumerate, numLocalQubits);
     __syncthreads();
@@ -503,7 +503,7 @@ void copyGatesToSymbol(KernelGate* hostGates, int numGates, cudaStream_t& stream
     checkCudaErrors(cudaMemcpyToSymbolAsync(deviceGates, hostGates + gpuID * numGates, sizeof(KernelGate) * numGates, 0, cudaMemcpyDefault, stream));
 }
 
-void launchExecutor(int gridDim, qComplex* deviceStateVec, unsigned int* threadBias, int numLocalQubits, int numGates, unsigned int blockHot, unsigned int enumerate, cudaStream_t& stream, int gpuID) {
+void launchExecutor(int gridDim, cpx* deviceStateVec, unsigned int* threadBias, int numLocalQubits, int numGates, unsigned int blockHot, unsigned int enumerate, cudaStream_t& stream, int gpuID) {
     run<1<<THREAD_DEP><<<gridDim, 1<<THREAD_DEP, 0, stream>>>
-        (deviceStateVec, threadBias, loIdx_device[gpuID], shiftAt_device[gpuID], numLocalQubits, numGates, blockHot, enumerate);
+        (reinterpret_cast<cuCpx*>(deviceStateVec), threadBias, loIdx_device[gpuID], shiftAt_device[gpuID], numLocalQubits, numGates, blockHot, enumerate);
 }

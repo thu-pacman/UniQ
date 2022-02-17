@@ -10,18 +10,18 @@
 #include "dbg.h"
 #include "logger.h"
 
-Executor::Executor(std::vector<qComplex*> deviceStateVec, int numQubits, Schedule& schedule):
+Executor::Executor(std::vector<cpx*> deviceStateVec, int numQubits, Schedule& schedule):
     deviceStateVec(deviceStateVec),
     numQubits(numQubits),
     schedule(schedule) {
     threadBias.resize(MyGlobalVars::localGPUs);
     for (int g = 0; g < MyGlobalVars::localGPUs; g++) {
         checkCudaErrors(cudaSetDevice(g));
-        checkCudaErrors(cudaMalloc(&threadBias[g], sizeof(qindex) << THREAD_DEP));
+        checkCudaErrors(cudaMalloc(&threadBias[g], sizeof(idx_t) << THREAD_DEP));
     }
-    std::vector<qreal> ret;
+    std::vector<value_t> ret;
     int numLocalQubits = numQubits - MyGlobalVars::bit;
-    qindex numElements = qindex(1) << numLocalQubits;
+    idx_t numElements = idx_t(1) << numLocalQubits;
     deviceBuffer.resize(MyGlobalVars::localGPUs);
     for (int g = 0; g < MyGlobalVars::localGPUs; g++) {
         deviceBuffer[g] = deviceStateVec[g] + numElements;        
@@ -73,16 +73,16 @@ void Executor::transpose(std::vector<cuttHandle> plans) {
 
 void Executor::inplaceAll2All(int commSize, std::vector<int> comm, const State& newState) {
     int numLocalQubits = numQubits - MyGlobalVars::bit;
-    qindex oldGlobals = 0;
+    idx_t oldGlobals = 0;
     for (int i = numLocalQubits; i < numQubits; i++)
         oldGlobals |= 1ll << state.layout[i];
-    qindex newGlobals = 0;
+    idx_t newGlobals = 0;
     for (int i = numLocalQubits; i < numQubits; i++)
         newGlobals |= 1ll << newState.layout[i];
     
-    qindex globalMask = 0;
-    qindex localMasks[commSize];
-    qindex localMask = 0;
+    idx_t globalMask = 0;
+    idx_t localMasks[commSize];
+    idx_t localMask = 0;
     for (int i = numLocalQubits; i < numQubits; i++)
         if (newState.layout[i] != state.layout[i]) {
             int x = state.layout[i];
@@ -90,7 +90,7 @@ void Executor::inplaceAll2All(int commSize, std::vector<int> comm, const State& 
             localMask |= 1ll << newState.pos[x];
         }
 
-    for (qindex i = commSize-1, msk = localMask; i >= 0; i--, msk = localMask & (msk - 1)) {
+    for (idx_t i = commSize-1, msk = localMask; i >= 0; i--, msk = localMask & (msk - 1)) {
         localMasks[i] = msk;
     }
 
@@ -104,14 +104,14 @@ void Executor::inplaceAll2All(int commSize, std::vector<int> comm, const State& 
         checkCudaErrors(cudaStreamWaitEvent(MyGlobalVars::streams_comm[g], MyGlobalVars::events[g], 0));
     }
 
-    qComplex* tmpBuffer[MyGlobalVars::localGPUs];
+    cpx* tmpBuffer[MyGlobalVars::localGPUs];
     size_t tmpStart = 1ll << numLocalQubits;
     if (GPU_BACKEND == 3 || GPU_BACKEND == 4)
         tmpStart <<= 1;
     for (int i = 0; i < MyGlobalVars::localGPUs; i++)
         tmpBuffer[i] = deviceStateVec[i] + tmpStart;
 
-    for (qindex iter = 0; iter < (1ll << numLocalQubits); iter += (1 << sliceSize)) {
+    for (idx_t iter = 0; iter < (1ll << numLocalQubits); iter += (1 << sliceSize)) {
         if (iter & localMask) continue;
         for (int xr = 1; xr < commSize; xr++) {
             // copy from src to tmp_buffer
@@ -128,7 +128,7 @@ void Executor::inplaceAll2All(int commSize, std::vector<int> comm, const State& 
                 int b = a ^ xr;
                 if (comm[a] / MyGlobalVars::localGPUs != MyMPI::rank)
                     continue;
-                qindex srcBias = iter + localMasks[b % commSize];
+                idx_t srcBias = iter + localMasks[b % commSize];
 #if USE_MPI
                 int comm_a = comm[a] %  MyGlobalVars::localGPUs;
                 if (a < b) {
@@ -172,7 +172,7 @@ void Executor::inplaceAll2All(int commSize, std::vector<int> comm, const State& 
                 checkCudaErrors(cudaMemcpyAsync(
                     tmpBuffer[comm[b]],
                     deviceStateVec[comm[a]] + srcBias,
-                    (sizeof(qComplex) << sliceSize),
+                    (sizeof(cpx) << sliceSize),
                     cudaMemcpyDeviceToDevice,
                     MyGlobalVars::streams_comm[comm[b]]
                 ));
@@ -191,7 +191,7 @@ void Executor::inplaceAll2All(int commSize, std::vector<int> comm, const State& 
                 int b = a ^ xr;
                 if (comm[b] / MyGlobalVars::localGPUs != MyMPI::rank)
                     continue;
-                qindex dstBias = iter + localMasks[a % commSize];
+                idx_t dstBias = iter + localMasks[a % commSize];
                 int comm_b = comm[b] % MyGlobalVars::localGPUs;
                 checkCudaErrors(cudaSetDevice(comm_b));
 #if not USE_MPI
@@ -201,7 +201,7 @@ void Executor::inplaceAll2All(int commSize, std::vector<int> comm, const State& 
                 checkCudaErrors(cudaMemcpyAsync(
                     deviceStateVec[comm_b] + dstBias,
                     tmpBuffer[comm_b],
-                    (sizeof(qComplex) << sliceSize),
+                    (sizeof(cpx) << sliceSize),
                     cudaMemcpyDeviceToDevice,
                     MyGlobalVars::streams_comm[comm_b]
                 ));
@@ -213,9 +213,9 @@ void Executor::inplaceAll2All(int commSize, std::vector<int> comm, const State& 
 
 void Executor::all2all(int commSize, std::vector<int> comm) {
     int numLocalQubit = numQubits - MyGlobalVars::bit;
-    qindex numElements = 1ll << numLocalQubit;
+    idx_t numElements = 1ll << numLocalQubit;
     int numPart = numSlice / commSize;
-    qindex partSize = numElements / numSlice;
+    idx_t partSize = numElements / numSlice;
     commEvents.resize(numSlice * MyGlobalVars::localGPUs);
     partID.resize(numSlice * MyGlobalVars::localGPUs);
     peer.resize(numSlice * MyGlobalVars::localGPUs);
@@ -249,7 +249,7 @@ void Executor::all2all(int commSize, std::vector<int> comm) {
                     checkCudaErrors(cudaMemcpyAsync(
                         deviceStateVec[comm_a] + dstPart * partSize,
                         deviceBuffer[comm_a] + srcPart * partSize,
-                        partSize * sizeof(qComplex),
+                        partSize * sizeof(cpx),
                         cudaMemcpyDeviceToDevice,
                         MyGlobalVars::streams_comm[comm_a]
                     ));
@@ -298,7 +298,7 @@ void Executor::all2all(int commSize, std::vector<int> comm) {
                 checkCudaErrors(cudaMemcpyAsync(
                     deviceStateVec[comm[a]] + dstPart * partSize,
                     deviceBuffer[comm[b]] + srcPart * partSize,
-                    partSize * sizeof(qComplex),
+                    partSize * sizeof(cpx),
                     cudaMemcpyDeviceToDevice,
                     MyGlobalVars::streams_comm[comm[a]]
                 ));
@@ -331,7 +331,7 @@ void Executor::all2all(int commSize, std::vector<int> comm) {
 }
 
 #define SET_GATE_TO_ID(g, i) { \
-    qComplex mat[2][2] = {1, 0, 0, 1}; \
+    cpx mat[2][2] = {1, 0, 0, 1}; \
     hostGates[g * gates.size() + i] = KernelGate(GateType::ID, 0, 0, mat); \
 }
 
@@ -339,7 +339,7 @@ void Executor::all2all(int commSize, std::vector<int> comm) {
 #define IS_LOCAL_QUBIT(logicIdx) (state.pos[logicIdx] < numLocalQubits)
 #define IS_HIGH_PART(part_id, logicIdx) ((part_id >> (state.pos[logicIdx] - numLocalQubits) & 1) > 0)
 
-KernelGate Executor::getGate(const Gate& gate, int part_id, int numLocalQubits, qindex relatedLogicQb, const std::map<int, int>& toID) const {
+KernelGate Executor::getGate(const Gate& gate, int part_id, int numLocalQubits, idx_t relatedLogicQb, const std::map<int, int>& toID) const {
     if (gate.controlQubit2 != -1) {
         // Assume no CC-Diagonal
         int c1 = gate.controlQubit;
@@ -414,7 +414,7 @@ KernelGate Executor::getGate(const Gate& gate, int part_id, int numLocalQubits, 
                     }
                 }
                 case GateType::CRZ: { // GOC(c)
-                    qComplex mat[2][2] = {make_qComplex(1), make_qComplex(0), make_qComplex(0), IS_HIGH_PART(part_id, t) ? gate.mat[1][1]: gate.mat[0][0]};
+                    cpx mat[2][2] = {cpx(1), cpx(0), cpx(0), IS_HIGH_PART(part_id, t) ? gate.mat[1][1]: gate.mat[0][0]};
                     return KernelGate(
                         GateType::GOC,
                         toID.at(c), 1 - IS_SHARE_QUBIT(c),
@@ -441,7 +441,7 @@ KernelGate Executor::getGate(const Gate& gate, int part_id, int numLocalQubits, 
                 switch (gate.type) {
                     case GateType::CZ: {
                         if (IS_HIGH_PART(part_id, t)) {
-                            qComplex mat[2][2] = {make_qComplex(-1), make_qComplex(0), make_qComplex(0), make_qComplex(-1)};
+                            cpx mat[2][2] = {cpx(-1), cpx(0), cpx(0), cpx(-1)};
                             return KernelGate(
                                 GateType::GZZ,
                                 0, 0,
@@ -453,7 +453,7 @@ KernelGate Executor::getGate(const Gate& gate, int part_id, int numLocalQubits, 
                     }
                     case GateType::CU1: {
                         if (IS_HIGH_PART(part_id, t)) {
-                            qComplex mat[2][2] = {gate.mat[1][1], make_qComplex(0), make_qComplex(0), gate.mat[1][1]};
+                            cpx mat[2][2] = {gate.mat[1][1], cpx(0), cpx(0), gate.mat[1][1]};
                             return KernelGate(
                                 GateType::GCC,
                                 0, 0,
@@ -462,8 +462,8 @@ KernelGate Executor::getGate(const Gate& gate, int part_id, int numLocalQubits, 
                         }
                     }
                     case GateType::CRZ: {
-                        qComplex val = IS_HIGH_PART(part_id, t) ? gate.mat[1][1]: gate.mat[0][0];
-                        qComplex mat[2][2] = {val, make_qComplex(0), make_qComplex(0), val};
+                        cpx val = IS_HIGH_PART(part_id, t) ? gate.mat[1][1]: gate.mat[0][0];
+                        cpx mat[2][2] = {val, cpx(0), cpx(0), val};
                         return KernelGate(
                             GateType::GCC,
                             0, 0,
@@ -484,8 +484,8 @@ KernelGate Executor::getGate(const Gate& gate, int part_id, int numLocalQubits, 
             switch (gate.type) {
                 case GateType::U1: {
                     if (IS_HIGH_PART(part_id, t)) {
-                        qComplex val = gate.mat[1][1];
-                        qComplex mat[2][2] = {val, make_qComplex(0), make_qComplex(0), val};
+                        cpx val = gate.mat[1][1];
+                        cpx mat[2][2] = {val, cpx(0), cpx(0), val};
                         return KernelGate(GateType::GCC, 0, 0, mat);
                     } else {
                         return KernelGate::ID();
@@ -493,7 +493,7 @@ KernelGate Executor::getGate(const Gate& gate, int part_id, int numLocalQubits, 
                 }
                 case GateType::Z: {
                     if (IS_HIGH_PART(part_id, t)) {
-                        qComplex mat[2][2] = {make_qComplex(-1), make_qComplex(0), make_qComplex(0), make_qComplex(-1)};
+                        cpx mat[2][2] = {cpx(-1), cpx(0), cpx(0), cpx(-1)};
                         return KernelGate(GateType::GZZ, 0, 0, mat);
                     } else {
                         return KernelGate::ID();
@@ -501,8 +501,8 @@ KernelGate Executor::getGate(const Gate& gate, int part_id, int numLocalQubits, 
                 }
                 case GateType::S: {
                     if (IS_HIGH_PART(part_id, t)) {
-                        qComplex val = make_qComplex(0, 1);
-                        qComplex mat[2][2] = {val, make_qComplex(0), make_qComplex(0), val};
+                        cpx val = cpx(0, 1);
+                        cpx mat[2][2] = {val, cpx(0), cpx(0), val};
                         return KernelGate(GateType::GII, 0, 0, mat);
                     } else {
                         return KernelGate::ID();
@@ -511,8 +511,8 @@ KernelGate Executor::getGate(const Gate& gate, int part_id, int numLocalQubits, 
                 case GateType::SDG: {
                     // FIXME
                     if (IS_HIGH_PART(part_id, t)) {
-                        qComplex val = make_qComplex(0, -1);
-                        qComplex mat[2][2] = {val, make_qComplex(0), make_qComplex(0), val};
+                        cpx val = cpx(0, -1);
+                        cpx mat[2][2] = {val, cpx(0), cpx(0), val};
                         return KernelGate(GateType::GCC, 0, 0, mat);
                     } else {
                         return KernelGate::ID();
@@ -520,8 +520,8 @@ KernelGate Executor::getGate(const Gate& gate, int part_id, int numLocalQubits, 
                 }
                 case GateType::T: {
                     if (IS_HIGH_PART(part_id, t)) {
-                        qComplex val = gate.mat[1][1];
-                        qComplex mat[2][2] = {val, make_qComplex(0), make_qComplex(0), val};
+                        cpx val = gate.mat[1][1];
+                        cpx mat[2][2] = {val, cpx(0), cpx(0), val};
                         return KernelGate(GateType::GCC, 0, 0, mat);
                     } else {
                         return KernelGate::ID();
@@ -529,16 +529,16 @@ KernelGate Executor::getGate(const Gate& gate, int part_id, int numLocalQubits, 
                 }
                 case GateType::TDG: {
                     if (IS_HIGH_PART(part_id, t)) {
-                        qComplex val = gate.mat[1][1];
-                        qComplex mat[2][2] = {val, make_qComplex(0), make_qComplex(0), val};
+                        cpx val = gate.mat[1][1];
+                        cpx mat[2][2] = {val, cpx(0), cpx(0), val};
                         return KernelGate(GateType::GCC, 0, 0, mat);
                     } else {
                         return KernelGate::ID();
                     }
                 }
                 case GateType::RZ: {
-                    qComplex val = IS_HIGH_PART(part_id, t) ? gate.mat[1][1]: gate.mat[0][0];
-                    qComplex mat[2][2] = {val, make_qComplex(0), make_qComplex(0), val};
+                    cpx val = IS_HIGH_PART(part_id, t) ? gate.mat[1][1]: gate.mat[0][0];
+                    cpx mat[2][2] = {val, cpx(0), cpx(0), val};
                     return KernelGate(GateType::GCC, 0, 0, mat);
                 }
                 case GateType::ID: {
@@ -615,11 +615,11 @@ void Executor::applyPerGateGroup(GateGroup& gg) {
     auto& gates = gg.gates;
     int numLocalQubits = numQubits - MyGlobalVars::bit;
     // initialize blockHot, enumerate, threadBias
-    qindex relatedLogicQb = gg.relatedQubits;
+    idx_t relatedLogicQb = gg.relatedQubits;
     if (bitCount(relatedLogicQb) < LOCAL_QUBIT_SIZE) {
         relatedLogicQb = fillRelatedQubits(relatedLogicQb);
     }
-    qindex relatedQubits = toPhyQubitSet(relatedLogicQb);
+    idx_t relatedQubits = toPhyQubitSet(relatedLogicQb);
     
     unsigned int blockHot, enumerate;
     prepareBitMap(relatedQubits, blockHot, enumerate, numLocalQubits);
@@ -636,7 +636,7 @@ void Executor::applyPerGateGroup(GateGroup& gg) {
            hostGates[g * gates.size() + i] = getGate(gates[i], globalGPUID, numLocalQubits, relatedLogicQb, toID);
         }
     }
-    qindex gridDim = (qindex(1) << numLocalQubits) >> LOCAL_QUBIT_SIZE;
+    idx_t gridDim = (idx_t(1) << numLocalQubits) >> LOCAL_QUBIT_SIZE;
     for (int g = 0; g < MyGlobalVars::localGPUs; g++) {
         checkCudaErrors(cudaSetDevice(g));
         copyGatesToSymbol(hostGates, gates.size(), MyGlobalVars::streams[g], g);
@@ -648,11 +648,11 @@ void Executor::applyPerGateGroupSliced(GateGroup& gg, int sliceID) {
     auto& gates = gg.gates;
     int numLocalQubits = numQubits - 2 * MyGlobalVars::bit;
     // initialize blockHot, enumerate, threadBias
-    qindex relatedLogicQb = gg.relatedQubits;
+    idx_t relatedLogicQb = gg.relatedQubits;
     if (bitCount(relatedLogicQb) < LOCAL_QUBIT_SIZE) {
         relatedLogicQb = fillRelatedQubits(relatedLogicQb);
     }
-    qindex relatedQubits = toPhyQubitSet(relatedLogicQb);
+    idx_t relatedQubits = toPhyQubitSet(relatedLogicQb);
     
     unsigned int blockHot, enumerate;
     prepareBitMap(relatedQubits, blockHot, enumerate, numLocalQubits);
@@ -663,7 +663,7 @@ void Executor::applyPerGateGroupSliced(GateGroup& gg, int sliceID) {
     KernelGate hostGates[MyGlobalVars::localGPUs * gates.size()];
     assert(gates.size() < MAX_GATE);
     
-    qindex partSize = qindex(1) << numLocalQubits;
+    idx_t partSize = idx_t(1) << numLocalQubits;
     int numSlice = MyGlobalVars::numGPUs;
     #pragma omp parallel for num_threads(MyGlobalVars::localGPUs)
     for (int g = 0; g < MyGlobalVars::localGPUs; g++) {
@@ -676,7 +676,7 @@ void Executor::applyPerGateGroupSliced(GateGroup& gg, int sliceID) {
     for (int g = 0; g < MyGlobalVars::localGPUs; g++) {
         checkCudaErrors(cudaSetDevice(g));
         copyGatesToSymbol(hostGates, gates.size(), MyGlobalVars::streams[g], g);
-        qindex gridDim = (qindex(1) << numLocalQubits) >> LOCAL_QUBIT_SIZE;
+        idx_t gridDim = (idx_t(1) << numLocalQubits) >> LOCAL_QUBIT_SIZE;
         int pID = partID[sliceID * MyGlobalVars::localGPUs + g];
         launchExecutor(gridDim, deviceStateVec[g] + pID * partSize, threadBias[g], numLocalQubits, gates.size(), blockHot, enumerate, MyGlobalVars::streams[g], g);
     }
@@ -687,17 +687,17 @@ void Executor::applyBlasGroup(GateGroup& gg) {
 #ifdef OVERLAP_MAT
     gg.initMatrix(numLocalQubits);
 #endif
-    qindex numElements = qindex(1) << numLocalQubits;
-    qComplex alpha = make_qComplex(1.0, 0.0), beta = make_qComplex(0.0, 0.0);
+    idx_t numElements = idx_t(1) << numLocalQubits;
+    cpx alpha = cpx(1.0, 0.0), beta = cpx(0.0, 0.0);
     for (int g = 0; g < MyGlobalVars::localGPUs; g++) {
         checkCudaErrors(cudaSetDevice(g));
         checkCuttErrors(cuttExecute(gg.cuttPlans[g], deviceStateVec[g], deviceBuffer[g]));
         int K = 1 << gg.matQubit;
         checkBlasErrors(cublasGEMM(MyGlobalVars::blasHandles[g], CUBLAS_OP_N, CUBLAS_OP_N,
             K, numElements / K, K, // M, N, K
-            &alpha, gg.deviceMats[g], K, // alpha, a, lda
-            deviceBuffer[g], K, // b, ldb
-            &beta, deviceStateVec[g], K // beta, c, ldc
+            reinterpret_cast<cuCpx*>(&alpha), reinterpret_cast<cuCpx*>(gg.deviceMats[g]), K, // alpha, a, lda
+            reinterpret_cast<cuCpx*>(deviceBuffer[g]), K, // b, ldb
+            reinterpret_cast<cuCpx*>(&beta), reinterpret_cast<cuCpx*>(deviceStateVec[g]), K // beta, c, ldc
         ));
     }
 }
@@ -709,9 +709,9 @@ void Executor::applyBlasGroupSliced(GateGroup& gg, int sliceID) {
     if(sliceID == 0)
         gg.initMatrix(numQubits - MyGlobalVars::bit);
 #endif
-    qindex numElements = qindex(1) << numLocalQubits;
-    qComplex alpha = make_qComplex(1.0, 0.0), beta = make_qComplex(0.0, 0.0);
-    qindex partSize = qindex(1) << numLocalQubits;
+    idx_t numElements = idx_t(1) << numLocalQubits;
+    cpx alpha = cpx(1.0, 0.0), beta = cpx(0.0, 0.0);
+    idx_t partSize = idx_t(1) << numLocalQubits;
     int K = 1 << gg.matQubit;
     for (int g = 0; g < MyGlobalVars::localGPUs; g++) {
         checkCudaErrors(cudaSetDevice(g));
@@ -719,22 +719,22 @@ void Executor::applyBlasGroupSliced(GateGroup& gg, int sliceID) {
         checkCuttErrors(cuttExecute(gg.cuttPlans[g], deviceStateVec[g] + partSize * pID, deviceBuffer[g] + partSize * pID));
         checkBlasErrors(cublasGEMM(MyGlobalVars::blasHandles[g], CUBLAS_OP_N, CUBLAS_OP_N,
             K, numElements / K, K, // M, N, K
-            &alpha, gg.deviceMats[g], K, // alpha, a, lda
-            deviceBuffer[g] + partSize * pID, K, // b, ldb
-            &beta, deviceStateVec[g] + partSize * pID, K // beta, c, ldc
+            reinterpret_cast<cuCpx*>(&alpha), reinterpret_cast<cuCpx*>(gg.deviceMats[g]), K, // alpha, a, lda
+            reinterpret_cast<cuCpx*>(deviceBuffer[g] + partSize * pID), K, // b, ldb
+            reinterpret_cast<cuCpx*>(&beta), reinterpret_cast<cuCpx*>(deviceStateVec[g] + partSize * pID), K // beta, c, ldc
         ));
     }
 }
 
-qindex Executor::toPhyQubitSet(qindex logicQubitset) const {
-     qindex ret = 0;
+idx_t Executor::toPhyQubitSet(idx_t logicQubitset) const {
+     idx_t ret = 0;
     for (int i = 0; i < numQubits; i++)
         if (logicQubitset >> i & 1)
-            ret |= qindex(1) << state.pos[i];
+            ret |= idx_t(1) << state.pos[i];
     return ret;
 }
 
-qindex Executor::fillRelatedQubits(qindex relatedLogicQb) const {
+idx_t Executor::fillRelatedQubits(idx_t relatedLogicQb) const {
     int cnt = bitCount(relatedLogicQb);
     for (int i = 0; i < LOCAL_QUBIT_SIZE; i++) {
         if (!(relatedLogicQb & (1ll << state.layout[i]))) {
@@ -747,18 +747,18 @@ qindex Executor::fillRelatedQubits(qindex relatedLogicQb) const {
     return relatedLogicQb;
 }
 
-void Executor::prepareBitMap(qindex relatedQubits, unsigned int& blockHot, unsigned int& enumerate, int numLocalQubits) {
-    blockHot = (qindex(1) << numLocalQubits) - 1 - relatedQubits;
+void Executor::prepareBitMap(idx_t relatedQubits, unsigned int& blockHot, unsigned int& enumerate, int numLocalQubits) {
+    blockHot = (idx_t(1) << numLocalQubits) - 1 - relatedQubits;
     enumerate = relatedQubits;
-    qindex threadHot = 0;
+    idx_t threadHot = 0;
     for (int i = 0; i < THREAD_DEP; i++) {
-        qindex x = enumerate & (-enumerate);
+        idx_t x = enumerate & (-enumerate);
         threadHot += x;
         enumerate -= x;
     }
     unsigned int hostThreadBias[1 << THREAD_DEP];
     assert((threadHot | enumerate) == relatedQubits);
-    for (qindex i = (1 << THREAD_DEP) - 1, j = threadHot; i >= 0; i--, j = threadHot & (j - 1)) {
+    for (idx_t i = (1 << THREAD_DEP) - 1, j = threadHot; i >= 0; i--, j = threadHot & (j - 1)) {
         hostThreadBias[i] = j;
     }
     for (int g = 0; g < MyGlobalVars::localGPUs; g++) {
@@ -766,13 +766,13 @@ void Executor::prepareBitMap(qindex relatedQubits, unsigned int& blockHot, unsig
     }
 }
 
-std::map<int, int> Executor::getLogicShareMap(qindex relatedQubits, int numLocalQubits) const{
+std::map<int, int> Executor::getLogicShareMap(idx_t relatedQubits, int numLocalQubits) const{
     int shareCnt = 0;
     int localCnt = 0;
     int globalCnt = 0;
     std::map<int, int> toID; 
     for (int i = 0; i < numLocalQubits; i++) {
-        if (relatedQubits & (qindex(1) << i)) {
+        if (relatedQubits & (idx_t(1) << i)) {
             toID[state.layout[i]] = shareCnt++;
         } else {
             toID[state.layout[i]] = localCnt++;
@@ -848,7 +848,7 @@ void Executor::dm_transpose() {
     }
     allBarrier();
     auto start = std::chrono::system_clock::now();
-    qindex partSize = qindex(1) << (numQubits - 2 * MyGlobalVars::bit);
+    idx_t partSize = idx_t(1) << (numQubits - 2 * MyGlobalVars::bit);
     int numLocalQubits = numQubits - MyGlobalVars::bit;
     checkNCCLErrors(ncclGroupStart());
     for (int xr = 0; xr < MyGlobalVars::numGPUs; xr++) {
@@ -857,7 +857,7 @@ void Executor::dm_transpose() {
             int comm_b = comm_a ^ xr;
             checkCudaErrors(cudaSetDevice(a));
             if (comm_a == comm_b) {
-                checkCudaErrors(cudaMemcpyAsync(deviceStateVec[a] + comm_a * partSize, deviceBuffer[a] + comm_a * partSize, partSize * sizeof(qComplex), cudaMemcpyDeviceToDevice));
+                checkCudaErrors(cudaMemcpyAsync(deviceStateVec[a] + comm_a * partSize, deviceBuffer[a] + comm_a * partSize, partSize * sizeof(cpx), cudaMemcpyDeviceToDevice));
             } else if (comm_a < comm_b) {
                 checkNCCLErrors(ncclSend(
                     deviceBuffer[a] + comm_b * partSize,
@@ -903,6 +903,6 @@ void Executor::dm_transpose() {
     for (int g = 0; g < MyGlobalVars::localGPUs; g++) {
         checkCudaErrors(cudaSetDevice(g));
         unpacking(numQubits, deviceStateVec[g], deviceBuffer[g]);
-        // checkCudaErrors(cudaMemcpyAsync(deviceStateVec[g], deviceBuffer[g], sizeof(qComplex) << numLocalQubits, cudaMemcpyDeviceToDevice));
+        // checkCudaErrors(cudaMemcpyAsync(deviceStateVec[g], deviceBuffer[g], sizeof(cpx) << numLocalQubits, cudaMemcpyDeviceToDevice));
     }
 }

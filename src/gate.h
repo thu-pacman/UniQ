@@ -11,7 +11,7 @@ enum class GateType {
 struct Gate {
     int gateID;
     GateType type;
-    qComplex mat[2][2];
+    cpx mat[2][2];
     std::string name;
     int targetQubit;
     int controlQubit; // -1 if no control
@@ -31,15 +31,15 @@ struct Gate {
     static Gate CNOT(int controlQubit, int targetQubit);
     static Gate CY(int controlQubit, int targetQubit);
     static Gate CZ(int controlQubit, int targetQubit);
-    static Gate CRX(int controlQubit, int targetQubit, qreal angle);
-    static Gate CRY(int controlQubit, int targetQubit, qreal angle);
-    static Gate CU1(int controlQubit, int targetQubit, qreal lambda);
-    static Gate CRZ(int controlQubit, int targetQubit, qreal angle);
-    static Gate CU(int controlQubit, int targetQubit, std::vector<qComplex> params);
-    static Gate U1(int targetQubit, qreal lambda);
-    static Gate U2(int targetQubit, qreal phi, qreal lambda);
-    static Gate U3(int targetQubit, qreal theta, qreal phi, qreal lambda);
-    static Gate U(int targetQubit, std::vector<qComplex> params);
+    static Gate CRX(int controlQubit, int targetQubit, value_t angle);
+    static Gate CRY(int controlQubit, int targetQubit, value_t angle);
+    static Gate CU1(int controlQubit, int targetQubit, value_t lambda);
+    static Gate CRZ(int controlQubit, int targetQubit, value_t angle);
+    static Gate CU(int controlQubit, int targetQubit, std::vector<cpx> params);
+    static Gate U1(int targetQubit, value_t lambda);
+    static Gate U2(int targetQubit, value_t phi, value_t lambda);
+    static Gate U3(int targetQubit, value_t theta, value_t phi, value_t lambda);
+    static Gate U(int targetQubit, std::vector<cpx> params);
     static Gate H(int targetQubit);
     static Gate X(int targetQubit);
     static Gate Y(int targetQubit);
@@ -48,15 +48,15 @@ struct Gate {
     static Gate SDG(int targetQubit); 
     static Gate T(int targetQubit);
     static Gate TDG(int targetQubit);
-    static Gate RX(int targetQubit, qreal angle);
-    static Gate RY(int targetQubit, qreal angle);
-    static Gate RZ(int targetQubit, qreal angle);
+    static Gate RX(int targetQubit, value_t angle);
+    static Gate RY(int targetQubit, value_t angle);
+    static Gate RZ(int targetQubit, value_t angle);
     static Gate ID(int targetQubit);
     static Gate GII(int targetQubit);
     static Gate GTT(int targetQubit);
     static Gate GZZ(int targetQubit);
-    static Gate GOC(int targetQubit, qreal real, qreal imag);
-    static Gate GCC(int targetQubit, qreal real, qreal imag);
+    static Gate GOC(int targetQubit, value_t r, value_t i);
+    static Gate GCC(int targetQubit, value_t r, value_t i);
     static Gate random(int lo, int hi);
     static Gate random(int lo, int hi, GateType type);
     static Gate control(int controlQubit, int targetQubit, GateType type);
@@ -75,38 +75,38 @@ struct KernelGate {
     char targetIsGlobal;  // 0-local 1-global
     char controlIsGlobal; // 0-local 1-global 2-not control 
     char control2IsGlobal; // 0-local 1-global 2-not control
-    qreal r00, i00, r01, i01, r10, i10, r11, i11;
+    value_t r00, i00, r01, i01, r10, i10, r11, i11;
 
     KernelGate(
         GateType type_,
         int controlQubit2_, char control2IsGlobal_, 
         int controlQubit_, char controlIsGlobal_,
         int targetQubit_, char targetIsGlobal_,
-        const qComplex mat[2][2]
+        const cpx mat[2][2]
     ):
         targetQubit(targetQubit_), controlQubit(controlQubit_), controlQubit2(controlQubit2_),
         type(type_),
         targetIsGlobal(targetIsGlobal_), controlIsGlobal(controlIsGlobal_), control2IsGlobal(control2IsGlobal_),
-        r00(mat[0][0].x), i00(mat[0][0].y), r01(mat[0][1].x), i01(mat[0][1].y),
-        r10(mat[1][0].x), i10(mat[1][0].y), r11(mat[1][1].x), i11(mat[1][1].y) {}
+        r00(mat[0][0].real()), i00(mat[0][0].imag()), r01(mat[0][1].real()), i01(mat[0][1].imag()),
+        r10(mat[1][0].real()), i10(mat[1][0].imag()), r11(mat[1][1].real()), i11(mat[1][1].imag()) {}
     
     KernelGate(
         GateType type_,
         int controlQubit_, char controlIsGlobal_,
         int targetQubit_, char targetIsGlobal_,
-        const qComplex mat[2][2]
+        const cpx mat[2][2]
     ): KernelGate(type_, 2, -1, controlQubit_, controlIsGlobal_, targetQubit_, targetIsGlobal_, mat) {}
 
     KernelGate(
         GateType type_,
         int targetQubit_, char targetIsGlobal_,
-        const qComplex mat[2][2]
+        const cpx mat[2][2]
     ): KernelGate(type_, 2, -1, 2, -1, targetQubit_, targetIsGlobal_, mat) {}
 
     KernelGate() = default;
 
     static KernelGate ID() {
-        qComplex mat[2][2] = {1, 0, 0, 1}; \
+        cpx mat[2][2] = {1, 0, 0, 1}; \
         return KernelGate(GateType::ID, 0, 0, mat);
     }
 };

@@ -10,8 +10,8 @@ Gate Gate::CCX(int controlQubit, int controlQubit2, int targetQubit) {
     Gate g;
     g.gateID = ++ globalGateID;
     g.type = GateType::CCX;
-    g.mat[0][0] = make_qComplex(0); g.mat[0][1] = make_qComplex(1);
-    g.mat[1][0] = make_qComplex(1); g.mat[1][1] = make_qComplex(0);
+    g.mat[0][0] = cpx(0); g.mat[0][1] = cpx(1);
+    g.mat[1][0] = cpx(1); g.mat[1][1] = cpx(0);
     g.name = "CCX";
     g.targetQubit = targetQubit;
     g.controlQubit = controlQubit;
@@ -24,8 +24,8 @@ Gate Gate::CNOT(int controlQubit, int targetQubit) {
     Gate g;
     g.gateID = ++ globalGateID;
     g.type = GateType::CNOT;
-    g.mat[0][0] = make_qComplex(0); g.mat[0][1] = make_qComplex(1);
-    g.mat[1][0] = make_qComplex(1); g.mat[1][1] = make_qComplex(0);
+    g.mat[0][0] = cpx(0); g.mat[0][1] = cpx(1);
+    g.mat[1][0] = cpx(1); g.mat[1][1] = cpx(0);
     g.name = "CN";
     g.targetQubit = targetQubit;
     g.controlQubit = controlQubit;
@@ -36,8 +36,8 @@ Gate Gate::CY(int controlQubit, int targetQubit) {
     Gate g;
     g.gateID = ++ globalGateID;
     g.type = GateType::CY;
-    g.mat[0][0] = make_qComplex(0); g.mat[0][1] = make_qComplex(0, -1);
-    g.mat[1][0] = make_qComplex(0, 1); g.mat[1][1] = make_qComplex(0);
+    g.mat[0][0] = cpx(0); g.mat[0][1] = cpx(0, -1);
+    g.mat[1][0] = cpx(0, 1); g.mat[1][1] = cpx(0);
     g.name = "CY";
     g.targetQubit = targetQubit;
     g.controlQubit = controlQubit;
@@ -48,65 +48,65 @@ Gate Gate::CZ(int controlQubit, int targetQubit) {
     Gate g;
     g.gateID = ++ globalGateID;
     g.type = GateType::CZ;
-    g.mat[0][0] = make_qComplex(1); g.mat[0][1] = make_qComplex(0);
-    g.mat[1][0] = make_qComplex(0); g.mat[1][1] = make_qComplex(-1);
+    g.mat[0][0] = cpx(1); g.mat[0][1] = cpx(0);
+    g.mat[1][0] = cpx(0); g.mat[1][1] = cpx(-1);
     g.name = "CZ";
     g.targetQubit = targetQubit;
     g.controlQubit = controlQubit;
     return g;
 }
 
-Gate Gate::CRX(int controlQubit, int targetQubit, qreal angle) {
+Gate Gate::CRX(int controlQubit, int targetQubit, value_t angle) {
     Gate g;
     g.gateID = ++ globalGateID;
     g.type = GateType::CRX;
-    g.mat[0][0] = make_qComplex(cos(angle/2.0)); g.mat[0][1] = make_qComplex(0, -sin(angle/2.0));
-    g.mat[1][0] = make_qComplex(0, -sin(angle/2.0)); g.mat[1][1] = make_qComplex(cos(angle/2.0));
+    g.mat[0][0] = cpx(cos(angle/2.0)); g.mat[0][1] = cpx(0, -sin(angle/2.0));
+    g.mat[1][0] = cpx(0, -sin(angle/2.0)); g.mat[1][1] = cpx(cos(angle/2.0));
     g.name = "CRX";
     g.targetQubit = targetQubit;
     g.controlQubit = controlQubit;
     return g;
 }
 
-Gate Gate::CRY(int controlQubit, int targetQubit, qreal angle) {
+Gate Gate::CRY(int controlQubit, int targetQubit, value_t angle) {
     Gate g;
     g.gateID = ++ globalGateID;
     g.type = GateType::CRY;
-    g.mat[0][0] = make_qComplex(cos(angle/2.0)); g.mat[0][1] = make_qComplex(-sin(angle/2.0));
-    g.mat[1][0] = make_qComplex(sin(angle/2.0)); g.mat[1][1] = make_qComplex(cos(angle/2.0));
+    g.mat[0][0] = cpx(cos(angle/2.0)); g.mat[0][1] = cpx(-sin(angle/2.0));
+    g.mat[1][0] = cpx(sin(angle/2.0)); g.mat[1][1] = cpx(cos(angle/2.0));
     g.name = "CRY";
     g.targetQubit = targetQubit;
     g.controlQubit = controlQubit;
     return g;
 }
 
-Gate Gate::CU1(int controlQubit, int targetQubit, qreal lambda) {
+Gate Gate::CU1(int controlQubit, int targetQubit, value_t lambda) {
     Gate g;
     g.gateID = ++ globalGateID;
     g.type = GateType::CU1;
-    g.mat[0][0] = make_qComplex(1);
-    g.mat[0][1] = make_qComplex(0);
-    g.mat[1][0] = make_qComplex(0);
-    g.mat[1][1] = make_qComplex(cos(lambda), sin(lambda));
+    g.mat[0][0] = cpx(1);
+    g.mat[0][1] = cpx(0);
+    g.mat[1][0] = cpx(0);
+    g.mat[1][1] = cpx(cos(lambda), sin(lambda));
     g.name = "CU1";
     g.targetQubit = targetQubit;
     g.controlQubit = controlQubit;
     return g;
 }
 
-Gate Gate::CRZ(int controlQubit, int targetQubit, qreal angle) {
+Gate Gate::CRZ(int controlQubit, int targetQubit, value_t angle) {
     Gate g;
     g.gateID = ++ globalGateID;
     g.type = GateType::CRZ;
-    g.mat[0][0] = make_qComplex(cos(angle/2), -sin(angle/2)); g.mat[0][1] = make_qComplex(0);
-    g.mat[1][0] = make_qComplex(0); g.mat[1][1] = make_qComplex(cos(angle/2), sin(angle/2));
+    g.mat[0][0] = cpx(cos(angle/2), -sin(angle/2)); g.mat[0][1] = cpx(0);
+    g.mat[1][0] = cpx(0); g.mat[1][1] = cpx(cos(angle/2), sin(angle/2));
     g.name = "CRZ";
     g.targetQubit = targetQubit;
     g.controlQubit = controlQubit;
     return g;
 }
 
-Gate Gate::CU(int controlQubit, int targetQubit, std::vector<qComplex> params) {
+Gate Gate::CU(int controlQubit, int targetQubit, std::vector<cpx> params) {
     Gate g;
     g.gateID = ++globalGateID;
     g.type = GateType::CU;
@@ -118,49 +118,49 @@ Gate Gate::CU(int controlQubit, int targetQubit, std::vector<qComplex> params) {
     return g;
 }
 
-Gate Gate::U1(int targetQubit, qreal lambda) {
+Gate Gate::U1(int targetQubit, value_t lambda) {
     Gate g;
     g.gateID = ++ globalGateID;
     g.type = GateType::U1;
-    g.mat[0][0] = make_qComplex(1);
-    g.mat[0][1] = make_qComplex(0);
-    g.mat[1][0] = make_qComplex(0);
-    g.mat[1][1] = make_qComplex(cos(lambda), sin(lambda));
+    g.mat[0][0] = cpx(1);
+    g.mat[0][1] = cpx(0);
+    g.mat[1][0] = cpx(0);
+    g.mat[1][1] = cpx(cos(lambda), sin(lambda));
     g.name = "U1";
     g.targetQubit = targetQubit;
     g.controlQubit = -1;
     return g;
 }
 
-Gate Gate::U2(int targetQubit, qreal phi, qreal lambda) {
+Gate Gate::U2(int targetQubit, value_t phi, value_t lambda) {
     Gate g;
     g.gateID = ++ globalGateID;
     g.type = GateType::U2;
-    g.mat[0][0] = make_qComplex(1.0 / sqrt(2));
-    g.mat[0][1] = make_qComplex(-cos(lambda) / sqrt(2), -sin(lambda) / sqrt(2));
-    g.mat[1][0] = make_qComplex(cos(phi) / sqrt(2), sin(phi) / sqrt(2));
-    g.mat[1][1] = make_qComplex(cos(lambda + phi) / sqrt(2), sin(lambda + phi) / sqrt(2));
+    g.mat[0][0] = cpx(1.0 / sqrt(2));
+    g.mat[0][1] = cpx(-cos(lambda) / sqrt(2), -sin(lambda) / sqrt(2));
+    g.mat[1][0] = cpx(cos(phi) / sqrt(2), sin(phi) / sqrt(2));
+    g.mat[1][1] = cpx(cos(lambda + phi) / sqrt(2), sin(lambda + phi) / sqrt(2));
     g.name = "U2";
     g.targetQubit = targetQubit;
     g.controlQubit = -1;
     return g;
 }
 
-Gate Gate::U3(int targetQubit, qreal theta, qreal phi, qreal lambda) {
+Gate Gate::U3(int targetQubit, value_t theta, value_t phi, value_t lambda) {
     Gate g;
     g.gateID = ++ globalGateID;
     g.type = GateType::U3;
-    g.mat[0][0] = make_qComplex(cos(theta / 2));
-    g.mat[0][1] = make_qComplex(-cos(lambda) * sin(theta / 2), -sin(lambda) * sin(theta / 2));
-    g.mat[1][0] = make_qComplex(cos(phi) * sin(theta / 2), sin(phi) * sin(theta / 2));
-    g.mat[1][1] = make_qComplex(cos(phi + lambda) * cos(theta / 2), sin(phi + lambda) * cos(theta / 2));
+    g.mat[0][0] = cpx(cos(theta / 2));
+    g.mat[0][1] = cpx(-cos(lambda) * sin(theta / 2), -sin(lambda) * sin(theta / 2));
+    g.mat[1][0] = cpx(cos(phi) * sin(theta / 2), sin(phi) * sin(theta / 2));
+    g.mat[1][1] = cpx(cos(phi + lambda) * cos(theta / 2), sin(phi + lambda) * cos(theta / 2));
     g.name = "U3";
     g.targetQubit = targetQubit;
     g.controlQubit = -1;
     return g;
 }
 
-Gate Gate::U(int targetQubit, std::vector<qComplex> params) {
+Gate Gate::U(int targetQubit, std::vector<cpx> params) {
     Gate g;
     g.gateID = ++ globalGateID;
     g.type = GateType::U;
@@ -176,8 +176,8 @@ Gate Gate::H(int targetQubit) {
     Gate g;
     g.gateID = ++ globalGateID;
     g.type = GateType::H;
-    g.mat[0][0] = make_qComplex(1/sqrt(2)); g.mat[0][1] = make_qComplex(1/sqrt(2));
-    g.mat[1][0] = make_qComplex(1/sqrt(2)); g.mat[1][1] = make_qComplex(-1/sqrt(2));
+    g.mat[0][0] = cpx(1/sqrt(2)); g.mat[0][1] = cpx(1/sqrt(2));
+    g.mat[1][0] = cpx(1/sqrt(2)); g.mat[1][1] = cpx(-1/sqrt(2));
     g.name = "H";
     g.targetQubit = targetQubit;
     g.controlQubit = -1;
@@ -188,8 +188,8 @@ Gate Gate::X(int targetQubit) {
     Gate g;
     g.gateID = ++ globalGateID;
     g.type = GateType::X;
-    g.mat[0][0] = make_qComplex(0); g.mat[0][1] = make_qComplex(1);
-    g.mat[1][0] = make_qComplex(1); g.mat[1][1] = make_qComplex(0);
+    g.mat[0][0] = cpx(0); g.mat[0][1] = cpx(1);
+    g.mat[1][0] = cpx(1); g.mat[1][1] = cpx(0);
     g.name = "X";
     g.targetQubit = targetQubit;
     g.controlQubit = -1;
@@ -200,8 +200,8 @@ Gate Gate::Y(int targetQubit) {
     Gate g;
     g.gateID = ++ globalGateID;
     g.type = GateType::Y;
-    g.mat[0][0] = make_qComplex(0); g.mat[0][1] = make_qComplex(0, -1);
-    g.mat[1][0] = make_qComplex(0, 1); g.mat[1][1] = make_qComplex(0);
+    g.mat[0][0] = cpx(0); g.mat[0][1] = cpx(0, -1);
+    g.mat[1][0] = cpx(0, 1); g.mat[1][1] = cpx(0);
     g.name = "Y";
     g.targetQubit = targetQubit;
     g.controlQubit = -1;
@@ -212,8 +212,8 @@ Gate Gate::Z(int targetQubit) {
     Gate g;
     g.gateID = ++ globalGateID;
     g.type = GateType::Z;
-    g.mat[0][0] = make_qComplex(1); g.mat[0][1] = make_qComplex(0);
-    g.mat[1][0] = make_qComplex(0); g.mat[1][1] = make_qComplex(-1);
+    g.mat[0][0] = cpx(1); g.mat[0][1] = cpx(0);
+    g.mat[1][0] = cpx(0); g.mat[1][1] = cpx(-1);
     g.name = "Z";
     g.targetQubit = targetQubit;
     g.controlQubit = -1;
@@ -224,8 +224,8 @@ Gate Gate::S(int targetQubit) {
     Gate g;
     g.gateID = ++ globalGateID;
     g.type = GateType::S;
-    g.mat[0][0] = make_qComplex(1); g.mat[0][1] = make_qComplex(0);
-    g.mat[1][0] = make_qComplex(0); g.mat[1][1] = make_qComplex(0, 1);
+    g.mat[0][0] = cpx(1); g.mat[0][1] = cpx(0);
+    g.mat[1][0] = cpx(0); g.mat[1][1] = cpx(0, 1);
     g.name = "S";
     g.targetQubit = targetQubit;
     g.controlQubit = -1;
@@ -236,8 +236,8 @@ Gate Gate::SDG(int targetQubit) {
     Gate g;
     g.gateID = ++ globalGateID;
     g.type = GateType::SDG;
-    g.mat[0][0] = make_qComplex(1); g.mat[0][1] = make_qComplex(0);
-    g.mat[1][0] = make_qComplex(0); g.mat[1][1] = make_qComplex(0, -1);
+    g.mat[0][0] = cpx(1); g.mat[0][1] = cpx(0);
+    g.mat[1][0] = cpx(0); g.mat[1][1] = cpx(0, -1);
     g.name = "SDG";
     g.targetQubit = targetQubit;
     g.controlQubit = -1;
@@ -248,8 +248,8 @@ Gate Gate::T(int targetQubit) {
     Gate g;
     g.gateID = ++ globalGateID;
     g.type = GateType::T;
-    g.mat[0][0] = make_qComplex(1); g.mat[0][1] = make_qComplex(0);
-    g.mat[1][0] = make_qComplex(0); g.mat[1][1] = make_qComplex(1/sqrt(2), 1/sqrt(2));
+    g.mat[0][0] = cpx(1); g.mat[0][1] = cpx(0);
+    g.mat[1][0] = cpx(0); g.mat[1][1] = cpx(1/sqrt(2), 1/sqrt(2));
     g.name = "T";
     g.targetQubit = targetQubit;
     g.controlQubit = -1;
@@ -260,44 +260,44 @@ Gate Gate::TDG(int targetQubit) {
     Gate g;
     g.gateID = ++ globalGateID;
     g.type = GateType::T;
-    g.mat[0][0] = make_qComplex(1); g.mat[0][1] = make_qComplex(0);
-    g.mat[1][0] = make_qComplex(0); g.mat[1][1] = make_qComplex(1/sqrt(2), -1/sqrt(2));
+    g.mat[0][0] = cpx(1); g.mat[0][1] = cpx(0);
+    g.mat[1][0] = cpx(0); g.mat[1][1] = cpx(1/sqrt(2), -1/sqrt(2));
     g.name = "TDG";
     g.targetQubit = targetQubit;
     g.controlQubit = -1;
     return g;
 }
 
-Gate Gate::RX(int targetQubit, qreal angle) {
+Gate Gate::RX(int targetQubit, value_t angle) {
     Gate g;
     g.gateID = ++ globalGateID;
     g.type = GateType::RX;
-    g.mat[0][0] = make_qComplex(cos(angle/2.0)); g.mat[0][1] = make_qComplex(0, -sin(angle/2.0));
-    g.mat[1][0] = make_qComplex(0, -sin(angle/2.0)); g.mat[1][1] = make_qComplex(cos(angle/2.0));
+    g.mat[0][0] = cpx(cos(angle/2.0)); g.mat[0][1] = cpx(0, -sin(angle/2.0));
+    g.mat[1][0] = cpx(0, -sin(angle/2.0)); g.mat[1][1] = cpx(cos(angle/2.0));
     g.name = "RX";
     g.targetQubit = targetQubit;
     g.controlQubit = -1;
     return g;
 }
 
-Gate Gate::RY(int targetQubit, qreal angle) {
+Gate Gate::RY(int targetQubit, value_t angle) {
     Gate g;
     g.gateID = ++ globalGateID;
     g.type = GateType::RY;
-    g.mat[0][0] = make_qComplex(cos(angle/2.0)); g.mat[0][1] = make_qComplex(-sin(angle/2.0));
-    g.mat[1][0] = make_qComplex(sin(angle/2.0)); g.mat[1][1] = make_qComplex(cos(angle/2.0));
+    g.mat[0][0] = cpx(cos(angle/2.0)); g.mat[0][1] = cpx(-sin(angle/2.0));
+    g.mat[1][0] = cpx(sin(angle/2.0)); g.mat[1][1] = cpx(cos(angle/2.0));
     g.name = "RY";
     g.targetQubit = targetQubit;
     g.controlQubit = -1;
     return g;
 }
 
-Gate Gate::RZ(int targetQubit, qreal angle) {
+Gate Gate::RZ(int targetQubit, value_t angle) {
     Gate g;
     g.gateID = ++ globalGateID;
     g.type = GateType::RZ;
-    g.mat[0][0] = make_qComplex(cos(angle/2), -sin(angle/2)); g.mat[0][1] = make_qComplex(0);
-    g.mat[1][0] = make_qComplex(0); g.mat[1][1] = make_qComplex(cos(angle/2), sin(angle/2));
+    g.mat[0][0] = cpx(cos(angle/2), -sin(angle/2)); g.mat[0][1] = cpx(0);
+    g.mat[1][0] = cpx(0); g.mat[1][1] = cpx(cos(angle/2), sin(angle/2));
     g.name = "RZ";
     g.targetQubit = targetQubit;
     g.controlQubit = -1;
@@ -308,8 +308,8 @@ Gate Gate::ID(int targetQubit) {
     Gate g;
     g.gateID = ++ globalGateID;
     g.type = GateType::ID;
-    g.mat[0][0] = make_qComplex(1); g.mat[0][1] = make_qComplex(0);
-    g.mat[1][0] = make_qComplex(0); g.mat[1][1] = make_qComplex(1);
+    g.mat[0][0] = cpx(1); g.mat[0][1] = cpx(0);
+    g.mat[1][0] = cpx(0); g.mat[1][1] = cpx(1);
     g.name = "ID";
     g.targetQubit = targetQubit;
     g.controlQubit = -1;
@@ -320,8 +320,8 @@ Gate Gate::GII(int targetQubit) {
     Gate g;
     g.gateID = ++ globalGateID;
     g.type = GateType::GII;
-    g.mat[0][0] = make_qComplex(0, 1); g.mat[0][1] = make_qComplex(0);
-    g.mat[1][0] = make_qComplex(0); g.mat[1][1] = make_qComplex(0, 1);
+    g.mat[0][0] = cpx(0, 1); g.mat[0][1] = cpx(0);
+    g.mat[1][0] = cpx(0); g.mat[1][1] = cpx(0, 1);
     g.name = "GII";
     g.targetQubit = targetQubit;
     g.controlQubit = -1;
@@ -332,32 +332,32 @@ Gate Gate::GZZ(int targetQubit) {
     Gate g;
     g.gateID = ++ globalGateID;
     g.type = GateType::GZZ;
-    g.mat[0][0] = make_qComplex(-1); g.mat[0][1] = make_qComplex(0);
-    g.mat[1][0] = make_qComplex(0); g.mat[1][1] = make_qComplex(-1);
+    g.mat[0][0] = cpx(-1); g.mat[0][1] = cpx(0);
+    g.mat[1][0] = cpx(0); g.mat[1][1] = cpx(-1);
     g.name = "GZZ";
     g.targetQubit = targetQubit;
     g.controlQubit = -1;
     return g;
 }
 
-Gate Gate::GOC(int targetQubit, qreal real, qreal imag) {
+Gate Gate::GOC(int targetQubit, value_t r, value_t i) {
     Gate g;
     g.gateID = ++ globalGateID;
     g.type = GateType::GOC;
-    g.mat[0][0] = make_qComplex(1); g.mat[0][1] = make_qComplex(0);
-    g.mat[1][0] = make_qComplex(0); g.mat[1][1] = make_qComplex(real, imag);
+    g.mat[0][0] = cpx(1); g.mat[0][1] = cpx(0);
+    g.mat[1][0] = cpx(0); g.mat[1][1] = cpx(r, i);
     g.name = "GOC";
     g.targetQubit = targetQubit;
     g.controlQubit = -1;
     return g;
 }
 
-Gate Gate::GCC(int targetQubit, qreal real, qreal imag) {
+Gate Gate::GCC(int targetQubit, value_t r, value_t i) {
     Gate g;
     g.gateID = ++ globalGateID;
     g.type = GateType::GCC;
-    g.mat[0][0] = make_qComplex(real, imag); g.mat[0][1] = make_qComplex(0);
-    g.mat[1][0] = make_qComplex(0); g.mat[1][1] = make_qComplex(real, imag);
+    g.mat[0][0] = cpx(r, i); g.mat[0][1] = cpx(0);
+    g.mat[1][0] = cpx(0); g.mat[1][1] = cpx(r, i);
     g.name = "GCC";
     g.targetQubit = targetQubit;
     g.controlQubit = -1;
@@ -439,11 +439,11 @@ Gate Gate::random(int lo, int hi, GateType type) {
         case GateType::CU: {
             int t, c1;
             gen_c1_id(t, c1);
-            std::vector<qComplex> param = {
-                make_qComplex(gen_0_2pi_float(), gen_0_2pi_float()),
-                make_qComplex(gen_0_2pi_float(), gen_0_2pi_float()),
-                make_qComplex(gen_0_2pi_float(), gen_0_2pi_float()),
-                make_qComplex(gen_0_2pi_float(), gen_0_2pi_float())
+            std::vector<cpx> param = {
+                cpx(gen_0_2pi_float(), gen_0_2pi_float()),
+                cpx(gen_0_2pi_float(), gen_0_2pi_float()),
+                cpx(gen_0_2pi_float(), gen_0_2pi_float()),
+                cpx(gen_0_2pi_float(), gen_0_2pi_float())
             };
             return CU(c1, t, param);
         }
@@ -465,11 +465,11 @@ Gate Gate::random(int lo, int hi, GateType type) {
         case GateType::U: {
             int t;
             gen_single_id(t);
-            std::vector<qComplex> param = {
-                make_qComplex(gen_0_2pi_float(), gen_0_2pi_float()),
-                make_qComplex(gen_0_2pi_float(), gen_0_2pi_float()),
-                make_qComplex(gen_0_2pi_float(), gen_0_2pi_float()),
-                make_qComplex(gen_0_2pi_float(), gen_0_2pi_float())
+            std::vector<cpx> param = {
+                cpx(gen_0_2pi_float(), gen_0_2pi_float()),
+                cpx(gen_0_2pi_float(), gen_0_2pi_float()),
+                cpx(gen_0_2pi_float(), gen_0_2pi_float()),
+                cpx(gen_0_2pi_float(), gen_0_2pi_float())
             };
             return U(t, param);
         }
@@ -612,7 +612,7 @@ std::vector<unsigned char> Gate::serialize() const {
     int cur = 0;
     SERIALIZE_STEP(gateID);
     SERIALIZE_STEP(type);
-    memcpy(arr + cur, mat, sizeof(mat)); cur += sizeof(qComplex) * 4;
+    memcpy(arr + cur, mat, sizeof(mat)); cur += sizeof(cpx) * 4;
     SERIALIZE_STEP(name_len);
     strcpy(reinterpret_cast<char*>(arr) + cur, name.c_str()); cur += name_len + 1;
     SERIALIZE_STEP(targetQubit);
@@ -626,7 +626,7 @@ Gate Gate::deserialize(const unsigned char* arr, int& cur) {
     Gate g;
     DESERIALIZE_STEP(g.gateID);
     DESERIALIZE_STEP(g.type);
-    memcpy(g.mat, arr + cur, sizeof(g.mat)); cur += sizeof(qComplex) * 4;
+    memcpy(g.mat, arr + cur, sizeof(g.mat)); cur += sizeof(cpx) * 4;
     decltype(g.name.length()) name_len; DESERIALIZE_STEP(name_len);
     g.name = std::string(reinterpret_cast<const char*>(arr) + cur, name_len); cur += name_len + 1;
     DESERIALIZE_STEP(g.targetQubit);

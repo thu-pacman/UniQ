@@ -8,11 +8,11 @@
 
 struct ResultItem {
     ResultItem() = default;
-    ResultItem(const qindex& idx, const qComplex& amp): idx(idx), amp(amp) {}
-    qindex idx;
-    qComplex amp;
+    ResultItem(const idx_t& idx, const cpx& amp): idx(idx), amp(amp) {}
+    idx_t idx;
+    cpx amp;
     void print() {
-        printf("%lld %.12f: %.12f %.12f\n", idx, amp.x * amp.x + amp.y * amp.y, zero_wrapper(amp.x), zero_wrapper(amp.y));
+        printf("%lld %.12f: %.12f %.12f\n", idx, amp.real() * amp.real() + amp.imag() * amp.imag(), zero_wrapper(amp.real()), zero_wrapper(amp.imag()));
     }
     bool operator < (const ResultItem& b) { return idx < b.idx; }
 };
@@ -27,21 +27,21 @@ public:
     }
     void dumpGates();
     void printState();
-    ResultItem ampAt(qindex idx);
-    qComplex ampAtGPU(qindex idx);
-    bool localAmpAt(qindex idx, ResultItem& item);
+    ResultItem ampAt(idx_t idx);
+    cpx ampAtGPU(idx_t idx);
+    bool localAmpAt(idx_t idx, ResultItem& item);
     const int numQubits;
 
 private:
-    qindex toPhysicalID(qindex idx);
-    qindex toLogicID(qindex idx);
+    idx_t toPhysicalID(idx_t idx);
+    idx_t toLogicID(idx_t idx);
     void masterCompile();
 #if USE_MPI
     void gatherAndPrint(const std::vector<ResultItem>& results);
 #endif
     std::vector<Gate> gates;
-    std::vector<qComplex*> deviceStateVec;
-    std::vector<std::vector<qComplex*>> deviceMats;
+    std::vector<cpx*> deviceStateVec;
+    std::vector<std::vector<cpx*>> deviceMats;
     Schedule schedule;
-    std::vector<qComplex> result;
+    std::vector<cpx> result;
 };

@@ -1,12 +1,15 @@
 #pragma once
 
 #include <cstdio>
+#if USE_GPU
 #include <cuComplex.h>
 #include <cuda.h>
 #include <cutt.h>
 #include <cuda_runtime.h>
-#include <memory>
 #include <cublas_v2.h>
+#endif
+#include <memory>
+#include <complex>
 
 #if USE_MPI
 #include <mpi.h>
@@ -14,21 +17,27 @@
 #endif
 
 #ifdef USE_DOUBLE
-typedef double qreal;
-typedef long long qindex;
-typedef cuDoubleComplex qComplex;
-#define make_qComplex make_cuDoubleComplex
+typedef double value_t;
+typedef long long idx_t;
+typedef std::complex<double> cpx;
 #define MPI_Complex MPI_C_DOUBLE_COMPLEX
+#if USE_GPU
+typedef cuDoubleComplex cuCpx;
+#define make_cuComplex make_cuDoubleComplex
 #define cublasGEMM cublasZgemm
 #define NCCL_FLOAT_TYPE ncclDouble
+#endif
 #else
-typedef float qreal;
-typedef long long qindex;
-typedef cuFloatComplex qComplex;
-#define make_qComplex make_cuFloatComplex
+typedef float value_t;
+typedef long long idx_t;
+typedef std::complex<float> cpx;
 #define MPI_Complex MPI_C_COMPLEX
+#if USE_GPU
+typedef cuFloatComplex cuCpx;
+#define make_cuComplex make_cuFloatComplex
 #define cublasGEMM cublasCgemm
 #define NCCL_FLOAT_TYPE ncclFloat
+#endif
 #endif
 
 #define SERIALIZE_STEP(x) { *reinterpret_cast<decltype(x)*>(arr + cur) = x; cur += sizeof(x); }
@@ -60,6 +69,7 @@ const int COALESCE_GLOBAL = COALESCE_GLOBAL_DEFINED;
 const int MAX_GATE = 600;
 const int MIN_MAT_SIZE = MIN_MAT_SIZE_DEFINED;
 
+#ifdef USE_GPU
 static const char *cublasGetErrorString(cublasStatus_t error) {
     switch (error)
     {
@@ -127,18 +137,20 @@ static const char *cuttGetErrorString(cuttResult error) {
     } \
 }
 
-#define checkMPIErrors(stmt) {                          \
-  int err = stmt;                                      \
-  if(err != MPI_SUCCESS) {                          \
-    fprintf(stderr, "%s in file %s, function %s, line %i: %04d\n", #stmt, __FILE__, __FUNCTION__, __LINE__, err); \
-      exit(1); \
-  }                                                 \
-}
-
 #define checkNCCLErrors(stmt) {                         \
   ncclResult_t err= stmt;                             \
   if (err != ncclSuccess) {                            \
     fprintf(stderr, "%s in file %s, function %s, line %i: %04d %s\n", #stmt, __FILE__, __FUNCTION__, __LINE__, err, ncclGetErrorString(err)); \
+      exit(1); \
+  }                                                 \
+}
+
+#endif
+
+#define checkMPIErrors(stmt) {                          \
+  int err = stmt;                                      \
+  if(err != MPI_SUCCESS) {                          \
+    fprintf(stderr, "%s in file %s, function %s, line %i: %04d\n", #stmt, __FILE__, __FUNCTION__, __LINE__, err); \
       exit(1); \
   }                                                 \
 }
@@ -173,14 +185,10 @@ int bitCount(T x) {
     return ret;
 }
 
-qreal zero_wrapper(qreal x);
+value_t zero_wrapper(value_t x);
 
-qComplex operator * (const qComplex& a, const qComplex& b);
-qComplex operator + (const qComplex& a, const qComplex& b);
+bool isUnitary(std::unique_ptr<cpx[]>& mat, int n);
 
-bool isUnitary(std::unique_ptr<qComplex[]>& mat, int n);
-
-qComplex make_qComplex(qreal x);
-bool operator < (const qComplex& a, const qComplex& b);
+bool operator < (const cpx& a, const cpx& b);
 
 int get_bit(int n);

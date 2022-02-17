@@ -34,23 +34,23 @@ GateGroup GateGroup::merge(const GateGroup& a, const GateGroup& b) {
     return std::move(ret);
 }
 
- qindex GateGroup::newRelated(qindex relatedQubits, const Gate& gate, qindex localQubits, bool enableGlobal) {
+ idx_t GateGroup::newRelated(idx_t relatedQubits, const Gate& gate, idx_t localQubits, bool enableGlobal) {
       if (enableGlobal) {
         if (!gate.isDiagonal()) {
-            relatedQubits |= qindex(1) << gate.targetQubit;
+            relatedQubits |= idx_t(1) << gate.targetQubit;
         }
     } else {
         if (!gate.isDiagonal() || (localQubits >> gate.targetQubit & 1))
-            relatedQubits |= qindex(1) << gate.targetQubit;
+            relatedQubits |= idx_t(1) << gate.targetQubit;
         if (gate.controlQubit != -1 && (localQubits >> gate.controlQubit & 1))
-            relatedQubits |= qindex(1) << gate.controlQubit;
+            relatedQubits |= idx_t(1) << gate.controlQubit;
         if (gate.controlQubit2 != -1 && (localQubits >> gate.controlQubit2 & 1))
-            relatedQubits |= qindex(1) << gate.controlQubit2;
+            relatedQubits |= idx_t(1) << gate.controlQubit2;
     }
     return relatedQubits;
  }
 
-void GateGroup::addGate(const Gate& gate, qindex localQubits, bool enableGlobal) {
+void GateGroup::addGate(const Gate& gate, idx_t localQubits, bool enableGlobal) {
     gates.push_back(gate);
     relatedQubits = newRelated(relatedQubits, gate, localQubits, enableGlobal);
 }
@@ -402,7 +402,7 @@ State GateGroup::initState(const State& oldState, int numLocalQubits) {
     UNREACHABLE();
 }
 
-State LocalGroup::initState(const State& oldState, int numQubits, const std::vector<int>& newGlobals, qindex overlapGlobals, qindex overlapRelated) {
+State LocalGroup::initState(const State& oldState, int numQubits, const std::vector<int>& newGlobals, idx_t overlapGlobals, idx_t overlapRelated) {
     int numLocalQubits = numQubits - MyGlobalVars::bit;
     auto pos = oldState.pos, layout = oldState.layout;
     int overlapCnt = bitCount(overlapGlobals);
@@ -477,7 +477,7 @@ State LocalGroup::initState(const State& oldState, int numQubits, const std::vec
     return newState;
 }
 
-State LocalGroup::initStateInplace(const State& oldState, int numQubits, const std::vector<int>& newGlobals, qindex overlapGlobals) {
+State LocalGroup::initStateInplace(const State& oldState, int numQubits, const std::vector<int>& newGlobals, idx_t overlapGlobals) {
     int numLocalQubits = numQubits - MyGlobalVars::bit;
     auto pos = oldState.pos, layout = oldState.layout;
     int overlapCnt = bitCount(overlapGlobals);
@@ -599,10 +599,10 @@ for (int i = 0; i < n; i++) { \
         lo = insertBit(lo, t); \
         lo += i * n; \
         int hi = lo | 1 << t; \
-        qComplex v0 = mat[lo]; \
-        qComplex v1 = mat[hi]; \
-        mat[lo] = v0 * qComplex(gate.mat[0][0]) + v1 * qComplex(gate.mat[0][1]); \
-        mat[hi] = v0 * qComplex(gate.mat[1][0]) + v1 * qComplex(gate.mat[1][1]); \
+        cpx v0 = mat[lo]; \
+        cpx v1 = mat[hi]; \
+        mat[lo] = v0 * cpx(gate.mat[0][0]) + v1 * cpx(gate.mat[0][1]); \
+        mat[hi] = v0 * cpx(gate.mat[1][0]) + v1 * cpx(gate.mat[1][1]); \
     } \
 }
 
@@ -615,10 +615,10 @@ for (int i = 0; i < n; i++) { \
         lo += i * n; \
         lo |= 1 << c1; \
         int hi = lo | 1 << t; \
-        qComplex v0 = mat[lo]; \
-        qComplex v1 = mat[hi]; \
-        mat[lo] = v0 * qComplex(gate.mat[0][0]) + v1 * qComplex(gate.mat[0][1]); \
-        mat[hi] = v0 * qComplex(gate.mat[1][0]) + v1 * qComplex(gate.mat[1][1]); \
+        cpx v0 = mat[lo]; \
+        cpx v1 = mat[hi]; \
+        mat[lo] = v0 * cpx(gate.mat[0][0]) + v1 * cpx(gate.mat[0][1]); \
+        mat[hi] = v0 * cpx(gate.mat[1][0]) + v1 * cpx(gate.mat[1][1]); \
     } \
 }
 
@@ -631,11 +631,11 @@ void GateGroup::initCPUMatrix(int numLocalQubit) {
     matrix.clear();
     matrix.resize(MyGlobalVars::localGPUs);
     for (int gpuID = 0; gpuID < MyGlobalVars::localGPUs; gpuID++) {
-        matrix[gpuID] = std::make_unique<qComplex[]>(n * n);
+        matrix[gpuID] = std::make_unique<cpx[]>(n * n);
     }
     #pragma omp parallel
     for (int gpuID = 0; gpuID < MyGlobalVars::localGPUs; gpuID++) {
-        qComplex* mat = matrix[gpuID].get();
+        cpx* mat = matrix[gpuID].get();
         int globalGPUID = MyMPI::rank * MyGlobalVars::localGPUs + gpuID;
         auto isHiGPU = [globalGPUID, numLocalQubit](int q) {
             assert(q >= numLocalQubit);
@@ -643,17 +643,17 @@ void GateGroup::initCPUMatrix(int numLocalQubit) {
             return (bool)(globalGPUID >> (q - numLocalQubit) & 1);
         };
         #pragma omp for
-        for (int i = 0; i < n * n; i++) mat[i] = make_qComplex(0.0, 0.0);
+        for (int i = 0; i < n * n; i++) mat[i] = cpx(0.0, 0.0);
 
         #pragma omp for
         for (int i = 0; i < n; i++) {
-            mat[i * n + i] = make_qComplex(1.0, 0.0);
+            mat[i * n + i] = cpx(1.0, 0.0);
         }
-        
+
         auto insertBit = [](int x, int pos) {
-            return (x >> pos << (pos + 1)) | (x & ((qindex(1) << pos) - 1));
+            return (x >> pos << (pos + 1)) | (x & ((idx_t(1) << pos) - 1));
         };
-        
+
         for (auto& gate: gates) {
             if (gate.controlQubit2 != -1) {
                 int c2 = pos[gate.controlQubit2];
@@ -691,10 +691,10 @@ void GateGroup::initCPUMatrix(int numLocalQubit) {
                         lo |= 1 << c2;
                         lo |= 1 << c1;
                         int hi = lo | 1 << t;
-                        qComplex v0 = mat[lo];
-                        qComplex v1 = mat[hi];
-                        mat[lo] = v0 * qComplex(gate.mat[0][0]) + v1 * qComplex(gate.mat[0][1]);
-                        mat[hi] = v0 * qComplex(gate.mat[1][0]) + v1 * qComplex(gate.mat[1][1]);
+                        cpx v0 = mat[lo];
+                        cpx v1 = mat[hi];
+                        mat[lo] = v0 * cpx(gate.mat[0][0]) + v1 * cpx(gate.mat[0][1]);
+                        mat[hi] = v0 * cpx(gate.mat[1][0]) + v1 * cpx(gate.mat[1][1]);
                     }
                 }
             } else if (gate.controlQubit != -1) {
@@ -755,15 +755,15 @@ void GateGroup::initGPUMatrix() {
     int n = 1 << this->matQubit;
     for (int g = 0; g < MyGlobalVars::localGPUs; g++) {
         checkCudaErrors(cudaSetDevice(g));
-        qComplex realMat[n][n];
+        cpx realMat[n][n];
         #pragma omp parallel for
         for (int i = 0; i < n; i++)
             for (int j = 0; j < n; j++) {
                 realMat[i][j] = matrix[g][i * n + j];
             }
-        qComplex* mat;
-        cudaMalloc(&mat, n * n * sizeof(qComplex));
-        cudaMemcpyAsync(mat, realMat, n * n * sizeof(qComplex), cudaMemcpyHostToDevice, MyGlobalVars::streams[g]);
+        cpx* mat;
+        cudaMalloc(&mat, n * n * sizeof(cpx));
+        cudaMemcpyAsync(mat, realMat, n * n * sizeof(cpx), cudaMemcpyHostToDevice, MyGlobalVars::streams[g]);
         deviceMats.push_back(mat);
     }
 }
@@ -819,7 +819,7 @@ void Schedule::initCuttPlans(int numLocalQubits) {
 
     #pragma omp parallel for
     for (int i = 0; i < total; i++) {
-        checkCuttErrors(cuttPlan(&plans[i], locals[i], dim.data(), cuttPermPointers[i], sizeof(qComplex), MyGlobalVars::streams[0], false));
+        checkCuttErrors(cuttPlan(&plans[i], locals[i], dim.data(), cuttPermPointers[i], sizeof(cpx), MyGlobalVars::streams[0], false));
     }
 
     for (int g = 0; g < MyGlobalVars::localGPUs; g++) {

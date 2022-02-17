@@ -12,7 +12,7 @@ public:
     Schedule run();
 private:
     void fillLocals(LocalGroup& lg);
-    std::vector<std::pair<std::vector<Gate>, qindex>> moveToNext(LocalGroup& lg);
+    std::vector<std::pair<std::vector<Gate>, idx_t>> moveToNext(LocalGroup& lg);
     int numQubits;
     int localSize;
     int shareSize;
@@ -27,30 +27,30 @@ public:
 protected:
     int numQubits;
     std::vector<Gate> remainGates;
-    std::vector<int> getGroupOpt(bool full[], qindex related[], bool enableGlobal, int localSize, qindex localQubits);
+    std::vector<int> getGroupOpt(bool full[], idx_t related[], bool enableGlobal, int localSize, idx_t localQubits);
     void removeGatesOpt(const std::vector<int>& remove);
     std::set<int> remain;
 };
 
 class SimpleCompiler: public OneLayerCompiler<2048> {
 public:
-    SimpleCompiler(int numQubits, int localSize, qindex localQubits, const std::vector<Gate>& inputGates, bool enableGlobal, qindex whiteList = 0, qindex required = 0);
+    SimpleCompiler(int numQubits, int localSize, idx_t localQubits, const std::vector<Gate>& inputGates, bool enableGlobal, idx_t whiteList = 0, idx_t required = 0);
     LocalGroup run();
 private:
     int localSize;
-    qindex localQubits;
+    idx_t localQubits;
     bool enableGlobal;
-    qindex whiteList;
-    qindex required;
+    idx_t whiteList;
+    idx_t required;
 };
 
 class AdvanceCompiler: public OneLayerCompiler<512> {
 public:
-    AdvanceCompiler(int numQubits, qindex localQubits, qindex blasForbid, std::vector<Gate> inputGates);
+    AdvanceCompiler(int numQubits, idx_t localQubits, idx_t blasForbid, std::vector<Gate> inputGates);
     LocalGroup run(State &state, bool usePerGate, bool useBLAS, int preGateSize, int blasSize, int cuttSize);
 private:
-    qindex localQubits;
-    qindex blasForbid;
+    idx_t localQubits;
+    idx_t blasForbid;
 };
 
 class ChunkCompiler: public OneLayerCompiler<512> {

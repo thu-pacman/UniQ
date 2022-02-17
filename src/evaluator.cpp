@@ -234,7 +234,7 @@ double Evaluator::perfPerGate(int numQubits, const std::vector<GateType>& types)
 
 double Evaluator::perfBLAS(int numQubits, int blasSize) {
     loadParam(numQubits);
-    //double bias = (numQubits < 28) ? ((qindex)1 << (28 - numQubits)) : (1.0 / ((qindex)1 << (numQubits - 28)));
+    //double bias = (numQubits < 28) ? ((idx_t)1 << (28 - numQubits)) : (1.0 / ((idx_t)1 << (numQubits - 28)));
     return BLAS_perf[numQubits][blasSize] + cutt_cost[numQubits];
 }
 

@@ -9,7 +9,7 @@
 
 class Executor {
 public:
-    Executor(std::vector<qComplex*> deviceStateVec, int numQubits, Schedule& schedule);
+    Executor(std::vector<cpx*> deviceStateVec, int numQubits, Schedule& schedule);
     void run();
     void dm_transpose();
 private:
@@ -32,13 +32,13 @@ private:
     void allBarrier();
 
     // utils
-    qindex toPhyQubitSet(qindex logicQubitset) const;
-    qindex fillRelatedQubits(qindex related) const;
-    KernelGate getGate(const Gate& gate, int part_id, int numLocalQubits, qindex relatedLogicQb, const std::map<int, int>& toID) const;
+    idx_t toPhyQubitSet(idx_t logicQubitset) const;
+    idx_t fillRelatedQubits(idx_t related) const;
+    KernelGate getGate(const Gate& gate, int part_id, int numLocalQubits, idx_t relatedLogicQb, const std::map<int, int>& toID) const;
 
     // internal
-    void prepareBitMap(qindex relatedQubits, unsigned int& blockHot, unsigned int& threadBias, int numLocalQubits); // allocate threadBias
-    std::map<int, int> getLogicShareMap(qindex relatedQubits, int numLocalQubits) const; // input: physical, output logic -> share
+    void prepareBitMap(idx_t relatedQubits, unsigned int& blockHot, unsigned int& threadBias, int numLocalQubits); // allocate threadBias
+    std::map<int, int> getLogicShareMap(idx_t relatedQubits, int numLocalQubits) const; // input: physical, output logic -> share
 
     State state;
     State oldState;
@@ -48,8 +48,8 @@ private:
 
     // constants
     std::vector<unsigned int*> threadBias;
-    std::vector<qComplex*> deviceStateVec;
-    std::vector<qComplex*> deviceBuffer;
+    std::vector<cpx*> deviceStateVec;
+    std::vector<cpx*> deviceBuffer;
     int numQubits;
     int numSlice, numSliceBit;
 

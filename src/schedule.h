@@ -35,7 +35,7 @@ struct State {
 
 struct GateGroup {
     std::vector<Gate> gates;
-    qindex relatedQubits;
+    idx_t relatedQubits;
     State state;
     std::vector<int> cuttPerm;
     int matQubit;
@@ -43,8 +43,8 @@ struct GateGroup {
 
     std::vector<cuttHandle> cuttPlans;
 
-    std::vector<std::unique_ptr<qComplex[]>> matrix;
-    std::vector<qComplex*> deviceMats;
+    std::vector<std::unique_ptr<cpx[]>> matrix;
+    std::vector<cpx*> deviceMats;
 
     GateGroup(GateGroup&&) = default;
     GateGroup& operator = (GateGroup&&) = default;
@@ -52,8 +52,8 @@ struct GateGroup {
     GateGroup copyGates();
 
     static GateGroup merge(const GateGroup& a, const GateGroup& b);
-    static qindex newRelated(qindex old, const Gate& g, qindex localQubits, bool enableGlobal);
-    void addGate(const Gate& g, qindex localQubits, bool enableGlobal);
+    static idx_t newRelated(idx_t old, const Gate& g, idx_t localQubits, bool enableGlobal);
+    void addGate(const Gate& g, idx_t localQubits, bool enableGlobal);
     
     bool contains(int i) { return (relatedQubits >> i) & 1; }
     
@@ -77,7 +77,7 @@ struct LocalGroup {
 
     std::vector<GateGroup> overlapGroups;
     std::vector<GateGroup> fullGroups;
-    qindex relatedQubits;
+    idx_t relatedQubits;
 
     std::vector<cuttHandle> cuttPlans;
     
@@ -86,9 +86,9 @@ struct LocalGroup {
 
     bool contains(int i) { return (relatedQubits >> i) & 1; }
     void getCuttPlanPointers(int numLocalQubits, std::vector<cuttHandle*> &cuttPlanPointers, std::vector<int*> &cuttPermPointers, std::vector<int> &locals, bool isFirstGroup = false);
-    State initState(const State& oldState, int numQubits, const std::vector<int>& newGlobals, qindex overlapGlobals, qindex overlapRelated);
+    State initState(const State& oldState, int numQubits, const std::vector<int>& newGlobals, idx_t overlapGlobals, idx_t overlapRelated);
     State initFirstGroupState(const State& oldState, int numQubits, const std::vector<int>& newGlobals);
-    State initStateInplace(const State& oldState, int numQubits, const std::vector<int>& newGlobals, qindex overlapGlobals);
+    State initStateInplace(const State& oldState, int numQubits, const std::vector<int>& newGlobals, idx_t overlapGlobals);
     std::vector<unsigned char> serialize() const;
     static LocalGroup deserialize(const unsigned char* arr, int& cur);
 };

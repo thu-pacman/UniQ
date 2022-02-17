@@ -77,8 +77,8 @@ void init() {
 };
 
 
-qreal zero_wrapper(qreal x) {
-    const qreal eps = 1e-14;
+value_t zero_wrapper(value_t x) {
+    const value_t eps = 1e-14;
     if (x > -eps && x < eps) {
         return 0;
     } else {
@@ -86,45 +86,36 @@ qreal zero_wrapper(qreal x) {
     }
 }
 
-qComplex operator * (const qComplex& a, const qComplex& b) {
-    return make_qComplex(a.x * b.x - a.y * b.y, a.x * b.y + a.y * b.x);
-}
-
-qComplex operator + (const qComplex& a, const qComplex& b) {
-    return make_qComplex(a.x + b.x, a.y + b.y);
-}
-
-bool isUnitary(std::unique_ptr<qComplex[]>& mat, int n) {
-    qComplex result[n * n];
+bool isUnitary(std::unique_ptr<cpx[]>& mat, int n) {
+    cpx result[n * n];
     memset(result, 0, sizeof(result));
     for (int k = 0; k < n; k++)
         #pragma omp parallel for
         for (int i = 0; i < n; i++)
             for (int j = 0; j < n; j++) {
-                qComplex v1 = mat[k * n + i];
-                v1.y = - v1.y;
+                cpx v1 = std::conj(mat[k * n + i]);
                 result[i * n + j] = result[i * n + j] + v1 * mat[k * n + j];
             }
     bool wa = 0;
-    qreal eps = 1e-8;
+    value_t eps = 1e-8;
     #pragma omp parallel for
     for (int i = 0; i < n; i++) {
-        qComplex val = result[i * n + i];
-        if (fabs(val.x - 1) > eps || fabs(val.y) > eps) {
+        cpx val = result[i * n + i];
+        if (fabs(val.real() - 1) > eps || fabs(val.imag()) > eps) {
             wa = 1;
         }
         for (int j = 0; j < n; j++) {
             if (i == j)
                 continue;
-            qComplex val = result[i * n + j];
-            if (fabs(val.x) > eps || fabs(val.y) > eps)
+            cpx val = result[i * n + j];
+            if (fabs(val.real()) > eps || fabs(val.imag()) > eps)
                 wa = 1;
         }
     }
     if (wa) {
         for (int i = 0; i < n; i++) {
             for (int j = 0; j < n; j++)
-                printf("(%.2f %.2f) ", result[i * n + j].x, result[i * n + j].y);
+                printf("(%.2f %.2f) ", result[i * n + j].real(), result[i * n + j].imag());
             printf("\n");
         }
         exit(1);
@@ -132,12 +123,8 @@ bool isUnitary(std::unique_ptr<qComplex[]>& mat, int n) {
     return 1;
 }
 
-qComplex make_qComplex(qreal x) {
-    return make_qComplex(x, 0.0);
-}
-
-bool operator < (const qComplex& a, const qComplex& b) {
-        return a.x == b.x ? a.y < b.y : a.x < b.x;
+bool operator < (const cpx& a, const cpx& b) {
+        return a.real() == b.real() ? a.imag() < b.imag() : a.real() < b.real();
 }
 
 int get_bit(int n) {

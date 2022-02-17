@@ -26,8 +26,8 @@ std::vector<int> parse_qid(char buf[]) {
     return ret;
 }
 
-std::pair<std::string, std::vector<qreal>> parse_gate(char buf[]) {
-    qreal pi = acos(-1);
+std::pair<std::string, std::vector<value_t>> parse_gate(char buf[]) {
+    value_t pi = acos(-1);
     int l = strlen(buf);
     std::string name;
     int i = 0;
@@ -38,7 +38,7 @@ std::pair<std::string, std::vector<qreal>> parse_gate(char buf[]) {
             break;
         i++;
     }
-    std::vector<qreal> params;
+    std::vector<value_t> params;
     while (i < l) {
         i++;
         std::string st;
@@ -46,7 +46,7 @@ std::pair<std::string, std::vector<qreal>> parse_gate(char buf[]) {
             st += buf[i];
             i++;
         }
-        qreal param = 1;
+        value_t param = 1;
         if (st[0] == 'p' && st[1] == 'i' && st[2] == '*') {
             param = pi;
             st = st.erase(0, 3);

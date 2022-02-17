@@ -9,15 +9,15 @@
 #include "circuit.h"
 
 // kernelSimple
-void kernelInit(std::vector<qComplex*> &deviceStateVec, int numQubits);
-void kernelExecSimple(qComplex* deviceStateVec, int numQubits, const std::vector<Gate> & gates);
-qreal kernelMeasure(qComplex* deviceStateVec, int numQubits, int targetQubit);
-qComplex kernelGetAmp(qComplex* deviceStateVec, qindex idx);
-void kernelDeviceToHost(qComplex* hostStateVec, qComplex* deviceStateVec, int numQubits);
-void kernelDestroy(qComplex* deviceStateVec);
+void kernelInit(std::vector<cpx*> &deviceStateVec, int numQubits);
+void kernelExecSimple(cpx* deviceStateVec, int numQubits, const std::vector<Gate> & gates);
+value_t kernelMeasure(cpx* deviceStateVec, int numQubits, int targetQubit);
+cpx kernelGetAmp(cpx* deviceStateVec, idx_t idx);
+void kernelDeviceToHost(cpx* hostStateVec, cpx* deviceStateVec, int numQubits);
+void kernelDestroy(cpx* deviceStateVec);
 void cuttPlanInit(std::vector<cuttHandle>& plans);
-void packing(int numQubits, const qComplex* src, qComplex* dest); // result is saved in dest
-void unpacking(int numQubits, qComplex* src, qComplex* buffer); // result is saved in src
+void packing(int numQubits, const cpx* src, cpx* dest); // result is saved in dest
+void unpacking(int numQubits, cpx* src, cpx* buffer); // result is saved in src
 
 
 // kernelOpt
@@ -26,10 +26,10 @@ void initControlIdx();
 void copyGatesToSymbol(KernelGate* hostGates, int numGates, cudaStream_t& stream, int gpuID);
 
 // call cudaSetDevice() before this function
-void launchExecutor(int gridDim, qComplex* deviceStateVec, unsigned int* threadBias, int numLocalQubits, int numGates, unsigned int blockHot, unsigned int enumerate, cudaStream_t& stream, int gpuID);
+void launchExecutor(int gridDim, cpx* deviceStateVec, unsigned int* threadBias, int numLocalQubits, int numGates, unsigned int blockHot, unsigned int enumerate, cudaStream_t& stream, int gpuID);
 
 
 // kernelUtils
-void isnanTest(qComplex* data, int n, cudaStream_t& stream);
-void printVector(qComplex* data, int n, cudaStream_t& stream);
+void isnanTest(cpx* data, int n, cudaStream_t& stream);
+void printVector(cpx* data, int n, cudaStream_t& stream);
 void whileTrue();

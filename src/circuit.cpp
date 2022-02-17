@@ -62,11 +62,11 @@ int Circuit::run(bool copy_back, bool destroy) {
     if (copy_back) {
         result.resize(1ll << numQubits); // very slow ...
 #if GPU_BACKEND == 0 || GPU_BACKEND == 2
-        kernelDeviceToHost((qComplex*)result.data(), deviceStateVec[0], numQubits);
+        kernelDeviceToHost((cpx*)result.data(), deviceStateVec[0], numQubits);
 #else
-        qindex elements = 1ll << (numQubits - MyGlobalVars::bit);
+        idx_t elements = 1ll << (numQubits - MyGlobalVars::bit);
         for (int g = 0; g < MyGlobalVars::localGPUs; g++) {
-            kernelDeviceToHost((qComplex*)result.data() + elements * g, deviceStateVec[g], numQubits - MyGlobalVars::bit);
+            kernelDeviceToHost((cpx*)result.data() + elements * g, deviceStateVec[g], numQubits - MyGlobalVars::bit);
         }
 #endif
     }
@@ -100,46 +100,46 @@ void Circuit::dumpGates() {
     }
 }
 
-qindex Circuit::toPhysicalID(qindex idx) {
-    qindex id = 0;
+idx_t Circuit::toPhysicalID(idx_t idx) {
+    idx_t id = 0;
     auto& pos = schedule.finalState.pos;
     for (int i = 0; i < numQubits; i++) {
         if (idx >> i & 1)
-            id |= qindex(1) << pos[i];
+            id |= idx_t(1) << pos[i];
     }
     return id;
 }
 
-qindex Circuit::toLogicID(qindex idx) {
-    qindex id = 0;
+idx_t Circuit::toLogicID(idx_t idx) {
+    idx_t id = 0;
     auto& pos = schedule.finalState.pos;
     for (int i = 0; i < numQubits; i++) {
         if (idx >> pos[i] & 1)
-            id |= qindex(1) << i;
+            id |= idx_t(1) << i;
     }
     return id;
 }
 
-ResultItem Circuit::ampAt(qindex idx) {
-    qindex id = toPhysicalID(idx);
-    return ResultItem(idx, make_qComplex(result[id].x, result[id].y));
+ResultItem Circuit::ampAt(idx_t idx) {
+    idx_t id = toPhysicalID(idx);
+    return ResultItem(idx, result[id]);
 }
 
-qComplex Circuit::ampAtGPU(qindex idx) {
-    qindex id = toPhysicalID(idx);
-    qComplex ret;
+cpx Circuit::ampAtGPU(idx_t idx) {
+    idx_t id = toPhysicalID(idx);
+    cpx ret;
 #if USE_MPI
-    qindex localAmps = (1ll << numQubits) / MyMPI::commSize;
-    qindex rankID = id / localAmps;
+    idx_t localAmps = (1ll << numQubits) / MyMPI::commSize;
+    idx_t rankID = id / localAmps;
 
     if (!USE_MPI || MyMPI::rank == rankID) {
-        qindex localID = id % localAmps;
+        idx_t localID = id % localAmps;
 #else
-        qindex localID = id;
+        idx_t localID = id;
 #endif
-        qindex localGPUAmp = (1ll << numQubits) / MyGlobalVars::numGPUs;
+        idx_t localGPUAmp = (1ll << numQubits) / MyGlobalVars::numGPUs;
         int gpuID = localID / localGPUAmp;
-        qindex localGPUID = localID % localGPUAmp;
+        idx_t localGPUID = localID % localGPUAmp;
         checkCudaErrors(cudaSetDevice(gpuID));
         ret = kernelGetAmp(deviceStateVec[gpuID], localGPUID);
 #if USE_MPI
@@ -149,13 +149,13 @@ qComplex Circuit::ampAtGPU(qindex idx) {
     return ret;
 }
 
-bool Circuit::localAmpAt(qindex idx, ResultItem& item) {
-    qindex localAmps = (1ll << numQubits) / MyMPI::commSize;
-    qindex id = toPhysicalID(idx);
+bool Circuit::localAmpAt(idx_t idx, ResultItem& item) {
+    idx_t localAmps = (1ll << numQubits) / MyMPI::commSize;
+    idx_t id = toPhysicalID(idx);
     if (id / localAmps == MyMPI::rank) {
         // printf("%d belongs to rank %d\n", idx, MyMPI::rank);
-        qindex localID = id % localAmps;
-        item = ResultItem(idx, make_qComplex(result[localID].x, result[localID].y));
+        idx_t localID = id % localAmps;
+        item = ResultItem(idx, result[localID]);
         return true;
     }
     return false;
@@ -279,9 +279,9 @@ void Circuit::printState() {
 #endif
     results.clear();
     int numLocalAmps = (1ll << numQubits) / MyMPI::commSize;
-    for (qindex i = 0; i < numLocalAmps; i++) {
-        if (result[i].x * result[i].x + result[i].y * result[i].y > 0.001) {
-            qindex logicID = toLogicID(i + numLocalAmps * MyMPI::rank);
+    for (idx_t i = 0; i < numLocalAmps; i++) {
+        if (std::norm(result[i]) > 0.001) {
+            idx_t logicID = toLogicID(i + numLocalAmps * MyMPI::rank);
             if (logicID >= 128) {
                 // printf("large amp %d belongs to %d\n", logicID, MyMPI::rank);
                 results.push_back(ResultItem(logicID, result[i]));
@@ -303,9 +303,9 @@ void Circuit::printState() {
     for (auto& item: results)
         item.print();
     results.clear();
-    for (qindex i = 0; i < (1ll << numQubits); i++) {
-        if (result[i].x * result[i].x + result[i].y * result[i].y > 0.001) {
-            qindex logicID = toLogicID(i);
+    for (idx_t i = 0; i < (1ll << numQubits); i++) {
+        if (result[i].norm() > 0.001) {
+            idx_t logicID = toLogicID(i);
             if (logicID >= 128) {
                 results.push_back(ResultItem(toLogicID(i), result[i]));
             }

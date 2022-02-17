@@ -91,7 +91,7 @@ void procBLAS(int numQubits) {
     checkCudaErrors(cudaMalloc(&result, sizeof(cuDoubleComplex) << numQubits));
     cublasHandle_t handle;
     checkBlasErrors(cublasCreate(&handle));
-    qindex numElements = qindex(1) << numQubits;
+    idx_t numElements = idx_t(1) << numQubits;
     cuDoubleComplex alpha = make_cuDoubleComplex(1.0, 0.0), beta = make_cuDoubleComplex(0.0, 0.0);
     cudaEvent_t start, stop;
     checkCudaErrors(cudaEventCreate(&start));
