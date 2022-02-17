@@ -8,7 +8,7 @@ const int REDUCE_BLOCK_DEP = 6; // 1 << REDUCE_BLOCK_DEP blocks in final reducti
 
 void kernelInit(std::vector<qComplex*> &deviceStateVec, int numQubits) {
     size_t size = (sizeof(qComplex) << numQubits) >> MyGlobalVars::bit;
-    if ((MyGlobalVars::numGPUs > 1 && !INPLACE) || BACKEND == 3 || BACKEND == 4) {
+    if ((MyGlobalVars::numGPUs > 1 && !INPLACE) || BACKEND == 3 || BACKEND == 4 || MODE > 0) {
         size <<= 1;
     }
 #if INPLACE
@@ -556,4 +556,101 @@ void kernelDeviceToHost(qComplex* hostStateVec, qComplex* deviceStateVec, int nu
 
 void kernelDestroy(qComplex* deviceStateVec) {
     cudaFree(deviceStateVec);
+}
+
+// copied and modified from DMSim project
+__global__ void packing_kernel(int dim, int m_gpu, int n_qubits, int lg2_m_gpu, const qComplex* __restrict__ src, qComplex* __restrict__ dest) {
+    const int tid = blockDim.x * blockIdx.x + threadIdx.x; 
+    for (qindex i = tid; i < dim * m_gpu; i += blockDim.x*gridDim.x) {
+        ////Original version with sementics
+        //qindex w_in_block = i / dim;
+        //qindex block_id = (i % dim) / m_gpu;
+        //qindex h_in_block = (i % dim) % m_gpu;
+        //qindex id_in_dm = w_in_block*dim+(i%dim);
+        //qindex id_in_buf = block_id * m_gpu * m_gpu + w_in_block * m_gpu + h_in_block;
+
+        //Optimized version
+        qindex w_in_block = (i >> n_qubits);
+        qindex block_id = (i & (dim-1)) >> (lg2_m_gpu);
+        qindex h_in_block = (i & (dim-1)) & (m_gpu-1);
+        qindex id_in_dm = (w_in_block << (n_qubits))+(i & (dim-1));
+        qindex id_in_buf = (block_id << (lg2_m_gpu+lg2_m_gpu)) 
+            + (w_in_block << (lg2_m_gpu)) + h_in_block;
+
+        dest[id_in_buf] = src[id_in_dm];
+    }
+}
+
+// copied and modified from DMSim project
+__global__ void unpacking_kernel(qindex dim, qindex m_gpu, int n_qubits, int lg2_m_gpu, const qComplex* __restrict__ src, qComplex* __restrict__ dest) {
+    const int tid = blockDim.x * blockIdx.x + threadIdx.x; 
+    for (qindex i = tid; i < (dim) * (m_gpu); i+=blockDim.x*gridDim.x) {
+        ////Original version with sementics
+        //qindex j = i / dim; 
+        //qindex id_in_buf = j * dim + (i % dim);
+        //qindex block_id = id_in_buf / (m_gpu*m_gpu);
+        //qindex in_block_id = id_in_buf % (m_gpu*m_gpu);
+        //qindex w_in_block = in_block_id / m_gpu;
+        //qindex h_in_block = in_block_id % m_gpu;
+        //qindex dm_w = w_in_block;
+        //qindex dm_h = h_in_block + m_gpu*block_id;
+        //qindex id_in_dim = dm_w * dim + dm_h;
+
+        //Optimized version
+        qindex j = (i >> (n_qubits));
+        qindex id_in_buf = (j << (n_qubits)) + (i & (dim-0x1));
+        qindex block_id = (id_in_buf >> (lg2_m_gpu+lg2_m_gpu));
+        qindex in_block_id = (id_in_buf & ((m_gpu)*(m_gpu)-0x1));
+        qindex w_in_block = (in_block_id >> (lg2_m_gpu));
+        qindex h_in_block = (in_block_id & (m_gpu-1));
+        qindex dm_w = w_in_block;
+        qindex dm_h = h_in_block + (block_id<<(lg2_m_gpu));
+        qindex id_in_dim = (dm_w << (n_qubits)) + dm_h;
+
+        dest[id_in_dim] = src[id_in_buf];
+    }
+}
+
+#define TRANSPOSE_TILE 16
+
+// copied and modified from DMSim project
+__global__ void block_transpose_kernel(qindex dim, qindex m_gpu, int n_qubits, int lg2_m_gpu, int n_gpus, const qComplex* __restrict__ src, qComplex* __restrict__ dest) {
+    __shared__ qComplex smem[TRANSPOSE_TILE][TRANSPOSE_TILE+1];
+    qindex tlx = threadIdx.x % TRANSPOSE_TILE;
+    qindex tly = threadIdx.x / TRANSPOSE_TILE;
+    qindex n_tile = (m_gpu + TRANSPOSE_TILE - 1) / TRANSPOSE_TILE;
+    for (qindex bid = blockIdx.x; bid < n_tile * n_tile * n_gpus; bid += gridDim.x) {
+        qindex bz = bid / (n_tile * n_tile); 
+        qindex by = bid % (n_tile * n_tile) / n_tile;
+        qindex bx = bid % n_tile;
+        qindex tx = bx * TRANSPOSE_TILE + tlx;
+        qindex ty = by * TRANSPOSE_TILE + tly;
+
+        if (tlx < m_gpu && tly < m_gpu)
+        {
+            qindex in_idx = ty * dim + bz * m_gpu + tx;
+            qComplex val = src[in_idx];
+            val.y = -val.y;
+            smem[tly][tlx] = val;
+        }
+        __syncthreads();
+        if (tlx < m_gpu && tly < m_gpu)
+        {
+            qindex out_idx = (bx * TRANSPOSE_TILE + tly) * dim + bz * m_gpu + by * TRANSPOSE_TILE + tlx;
+            dest[out_idx] = smem[tlx][tly];
+        }
+    } 
+}
+
+void packing(int numQubits, const qComplex* src, qComplex* dest) {
+    int n2 = numQubits / 2;
+    int n_thread = 1 << numQubits >> MyGlobalVars::bit;
+    packing_kernel<<<n_thread / 256, 256>>>(1ll << n2, 1ll << (n2 - MyGlobalVars::bit), n2, n2 - MyGlobalVars::bit, src, dest);
+}
+
+void unpacking(int numQubits, qComplex* src, qComplex* buffer) {
+    int n2 = numQubits / 2;
+    int n_thread = 1 << numQubits >> MyGlobalVars::bit;
+    unpacking_kernel<<<n_thread / 256, 256>>>(1ll << n2, 1ll << (n2 - MyGlobalVars::bit), n2, n2 - MyGlobalVars::bit, src, buffer);
+    block_transpose_kernel<<<n_thread / TRANSPOSE_TILE / TRANSPOSE_TILE, TRANSPOSE_TILE * TRANSPOSE_TILE>>>(1ll << n2, 1ll << (n2 - MyGlobalVars::bit), n2, n2 - MyGlobalVars::bit, MyGlobalVars::numGPUs, buffer, src);
 }

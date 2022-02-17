@@ -2,11 +2,13 @@
 
 #include <cuda_runtime.h>
 #include <algorithm>
+#include <chrono>
 
 #include "utils.h"
 #include "assert.h"
 #include "kernel.h"
 #include "dbg.h"
+#include "logger.h"
 
 Executor::Executor(std::vector<qComplex*> deviceStateVec, int numQubits, Schedule& schedule):
     deviceStateVec(deviceStateVec),
@@ -836,5 +838,71 @@ void Executor::eventBarrier() {
         checkCudaErrors(cudaSetDevice(g));
         checkCudaErrors(cudaEventRecord(MyGlobalVars::events[g], MyGlobalVars::streams_comm[g]));
         checkCudaErrors(cudaStreamWaitEvent(MyGlobalVars::streams[g], MyGlobalVars::events[g], 0));
+    }
+}
+
+void Executor::dm_transpose() {
+    for (int g = 0; g < MyGlobalVars::localGPUs; g++) {
+        checkCudaErrors(cudaSetDevice(g));
+        packing(numQubits, deviceStateVec[g], deviceBuffer[g]);
+    }
+    allBarrier();
+    auto start = std::chrono::system_clock::now();
+    qindex partSize = qindex(1) << (numQubits - 2 * MyGlobalVars::bit);
+    int numLocalQubits = numQubits - MyGlobalVars::bit;
+    checkNCCLErrors(ncclGroupStart());
+    for (int xr = 0; xr < MyGlobalVars::numGPUs; xr++) {
+        for (int a = 0; a < MyGlobalVars::localGPUs; a++) {
+            int comm_a = a + MyMPI::rank * MyGlobalVars::localGPUs;
+            int comm_b = comm_a ^ xr;
+            checkCudaErrors(cudaSetDevice(a));
+            if (comm_a == comm_b) {
+                checkCudaErrors(cudaMemcpyAsync(deviceStateVec[a] + comm_a * partSize, deviceBuffer[a] + comm_a * partSize, partSize * sizeof(qComplex), cudaMemcpyDeviceToDevice));
+            } else if (comm_a < comm_b) {
+                checkNCCLErrors(ncclSend(
+                    deviceBuffer[a] + comm_b * partSize,
+                    partSize * 2, // use double rather than complex
+                    NCCL_FLOAT_TYPE,
+                    comm_b,
+                    MyGlobalVars::ncclComms[a],
+                    MyGlobalVars::streams_comm[a]
+                ));
+                checkNCCLErrors(ncclRecv(
+                    deviceStateVec[a] + comm_b * partSize,
+                    partSize * 2, // use double rather than complex
+                    NCCL_FLOAT_TYPE,
+                    comm_b,
+                    MyGlobalVars::ncclComms[a],
+                    MyGlobalVars::streams_comm[a]
+                ));
+            } else {
+                checkNCCLErrors(ncclRecv(
+                    deviceStateVec[a] + comm_b * partSize,
+                    partSize * 2, // use double rather than complex
+                    NCCL_FLOAT_TYPE,
+                    comm_b,
+                    MyGlobalVars::ncclComms[a],
+                    MyGlobalVars::streams_comm[a]
+                ));
+                checkNCCLErrors(ncclSend(
+                    deviceBuffer[a] + comm_b * partSize,
+                    partSize * 2, // use double rather than complex
+                    NCCL_FLOAT_TYPE,
+                    comm_b,
+                    MyGlobalVars::ncclComms[a],
+                    MyGlobalVars::streams_comm[a]
+                ));
+            }
+        }
+    }
+    checkNCCLErrors(ncclGroupEnd());
+    allBarrier();
+    auto end = std::chrono::system_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    Logger::add("All2all Time: %d us", int(duration.count()));
+    for (int g = 0; g < MyGlobalVars::localGPUs; g++) {
+        checkCudaErrors(cudaSetDevice(g));
+        unpacking(numQubits, deviceStateVec[g], deviceBuffer[g]);
+        // checkCudaErrors(cudaMemcpyAsync(deviceStateVec[g], deviceBuffer[g], sizeof(qComplex) << numLocalQubits, cudaMemcpyDeviceToDevice));
     }
 }

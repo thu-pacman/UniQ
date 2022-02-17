@@ -16,6 +16,9 @@ qComplex kernelGetAmp(qComplex* deviceStateVec, qindex idx);
 void kernelDeviceToHost(qComplex* hostStateVec, qComplex* deviceStateVec, int numQubits);
 void kernelDestroy(qComplex* deviceStateVec);
 void cuttPlanInit(std::vector<cuttHandle>& plans);
+void packing(int numQubits, const qComplex* src, qComplex* dest); // result is saved in dest
+void unpacking(int numQubits, qComplex* src, qComplex* buffer); // result is saved in src
+
 
 // kernelOpt
 void initControlIdx();

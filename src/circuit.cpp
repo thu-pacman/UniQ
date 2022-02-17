@@ -23,7 +23,15 @@ int Circuit::run(bool copy_back, bool destroy) {
 #if BACKEND == 0
     kernelExecSimple(deviceStateVec[0], numQubits, gates);
 #elif BACKEND == 1 || BACKEND == 3 || BACKEND == 4 || BACKEND == 5
+#if MODE == 0
     Executor(deviceStateVec, numQubits, schedule).run();
+#elif MODE == 1
+    Executor exe1(deviceStateVec, numQubits, schedule);
+    exe1.run();
+    exe1.dm_transpose();
+    Executor exe2(deviceStateVec, numQubits, schedule);
+    exe2.run();
+#endif
 #elif BACKEND == 2
     gates.clear();
     for (size_t lgID = 0; lgID < schedule.localGroups.size(); lgID++) {

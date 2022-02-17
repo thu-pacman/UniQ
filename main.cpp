@@ -77,7 +77,11 @@ std::unique_ptr<Circuit> parse_circuit(const std::string &filename) {
         if (strcmp(buffer, "//") == 0 || strcmp(buffer, "OPENQASM") == 0 || strcmp(buffer, "include") == 0) {
         } else if (strcmp(buffer, "qreg") == 0) {
             fscanf(f, "%*c%*c%*c%d", &n);
+#if MODE == 0
             c = std::make_unique<Circuit>(n);
+#elif MODE == 1 || MODE == 2
+            c = std::make_unique<Circuit>(n * 2);
+#endif
         } else if (strcmp(buffer, "cx") == 0) {
             fscanf(f, "%s", buffer);
             auto qid = parse_qid(buffer);

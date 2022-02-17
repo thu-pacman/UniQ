@@ -11,6 +11,7 @@ class Executor {
 public:
     Executor(std::vector<qComplex*> deviceStateVec, int numQubits, Schedule& schedule);
     void run();
+    void dm_transpose();
 private:
     // instructions
     void transpose(std::vector<cuttHandle> plans);
