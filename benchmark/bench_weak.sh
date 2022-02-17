@@ -1,5 +1,5 @@
 #!/bin/bash
-source ../scripts/init.sh -DBACKEND=mix -DSHOW_SUMMARY=on -DSHOW_SCHEDULE=off -DMICRO_BENCH=on -DUSE_DOUBLE=on -DEVALUATOR_PREPROCESS=on -DUSE_MPI=off
+source ../scripts/init.sh -DGPU_BACKEND=mix -DSHOW_SUMMARY=on -DSHOW_SCHEDULE=off -DMICRO_BENCH=on -DUSE_DOUBLE=on -DEVALUATOR_PREPROCESS=on -DUSE_MPI=off
 LOG=../benchmark/logs
 CUDA_VISIBLE_DEVICES=0 ./main ../tests/input/basis_change_24.qasm 2>&1 | tee $LOG/weak.log
 CUDA_VISIBLE_DEVICES=0,1 ./main ../tests/input/basis_change_24.qasm 2>&1 | tee -a $LOG/weak.log

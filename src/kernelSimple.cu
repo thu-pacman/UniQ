@@ -8,13 +8,13 @@ const int REDUCE_BLOCK_DEP = 6; // 1 << REDUCE_BLOCK_DEP blocks in final reducti
 
 void kernelInit(std::vector<qComplex*> &deviceStateVec, int numQubits) {
     size_t size = (sizeof(qComplex) << numQubits) >> MyGlobalVars::bit;
-    if ((MyGlobalVars::numGPUs > 1 && !INPLACE) || BACKEND == 3 || BACKEND == 4 || MODE > 0) {
+    if ((MyGlobalVars::numGPUs > 1 && !INPLACE) || GPU_BACKEND == 3 || GPU_BACKEND == 4 || MODE > 0) {
         size <<= 1;
     }
 #if INPLACE
     size += sizeof(qComplex) * (1 << MAX_SLICE);
 #endif
-#if BACKEND == 2
+#if GPU_BACKEND == 2
     deviceStateVec.resize(1);
     checkCudaErrors(cudaSetDevice(0));
     checkCudaErrors(cudaMalloc(&deviceStateVec[0], sizeof(qComplex) << numQubits));
@@ -31,7 +31,7 @@ void kernelInit(std::vector<qComplex*> &deviceStateVec, int numQubits) {
     if  (!USE_MPI || MyMPI::rank == 0) {
         checkCudaErrors(cudaMemcpyAsync(deviceStateVec[0], &one, sizeof(qComplex), cudaMemcpyHostToDevice, MyGlobalVars::streams[0])); // state[0] = 1
     }
-#if BACKEND == 1 || BACKEND == 3 || BACKEND == 4 || BACKEND == 5
+#if GPU_BACKEND == 1 || GPU_BACKEND == 3 || GPU_BACKEND == 4 || GPU_BACKEND == 5
     initControlIdx();
 #endif
     for (int g = 0; g < MyGlobalVars::localGPUs; g++) {

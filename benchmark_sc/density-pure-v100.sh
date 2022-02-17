@@ -1,5 +1,5 @@
 #!/bin/bash
-source ../scripts/init.sh -DBACKEND=group -DMODE=densitypure -DSHOW_SUMMARY=on -DSHOW_SCHEDULE=on -DMICRO_BENCH=on -DUSE_DOUBLE=on -DDISABLE_ASSERT=off -DENABLE_OVERLAP=on -DMEASURE_STAGE=off -DEVALUATOR_PREPROCESS=on -DUSE_MPI=on -DMAT=7
+source ../scripts/init.sh -DGPU_BACKEND=group -DMODE=densitypure -DSHOW_SUMMARY=on -DSHOW_SCHEDULE=on -DMICRO_BENCH=on -DUSE_DOUBLE=on -DDISABLE_ASSERT=off -DENABLE_OVERLAP=on -DMEASURE_STAGE=off -DEVALUATOR_PREPROCESS=on -DUSE_MPI=on -DMAT=7
 set -x
 set -e
 tests="bv_13 hidden_shift_12 ising_9 qaoa_10 quantum_volume_11 supremacy_12 basis_change_9 basis_change_10 basis_change_11 basis_change_12 basis_change_13 basis_change_14"

@@ -418,7 +418,7 @@ __global__ void run(qComplex* a, unsigned int* threadBias, int* loArr, int* shif
     saveData(a, threadBias, enumerate);
 }
 
-#if BACKEND == 1 || BACKEND == 3 || BACKEND == 4 || BACKEND == 5
+#if GPU_BACKEND == 1 || GPU_BACKEND == 3 || GPU_BACKEND == 4 || GPU_BACKEND == 5
 void initControlIdx() {
     loIdx_device.resize(MyGlobalVars::localGPUs);
     shiftAt_device.resize(MyGlobalVars::localGPUs);

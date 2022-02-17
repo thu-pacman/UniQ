@@ -4,7 +4,7 @@ mkdir -p logs/bench_comm
 mkdir -p logs/bench_comm/4V100
 mkdir -p logs/bench_comm/2V100
 cd ../scripts
-source ./init.sh -DBACKEND=mix -DSHOW_SUMMARY=on -DSHOW_SCHEDULE=off -DUSE_DOUBLE=on -DEVALUATOR_PREPROCESS=on -DUSE_MPI=off 2>&1
+source ./init.sh -DGPU_BACKEND=mix -DSHOW_SUMMARY=on -DSHOW_SCHEDULE=off -DUSE_DOUBLE=on -DEVALUATOR_PREPROCESS=on -DUSE_MPI=off 2>&1
 cd ../benchmark
 
 tests="basis_change_28 bv_28 hidden_shift_28 qaoa_28 qft_28 quantum_volume_28 supremacy_28"

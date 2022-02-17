@@ -20,9 +20,9 @@ int Circuit::run(bool copy_back, bool destroy) {
         checkCudaErrors(cudaProfilerStart());
     }
     auto start = chrono::system_clock::now();
-#if BACKEND == 0
+#if GPU_BACKEND == 0
     kernelExecSimple(deviceStateVec[0], numQubits, gates);
-#elif BACKEND == 1 || BACKEND == 3 || BACKEND == 4 || BACKEND == 5
+#elif GPU_BACKEND == 1 || GPU_BACKEND == 3 || GPU_BACKEND == 4 || GPU_BACKEND == 5
 #if MODE == 0
     Executor(deviceStateVec, numQubits, schedule).run();
 #elif MODE == 1
@@ -32,7 +32,7 @@ int Circuit::run(bool copy_back, bool destroy) {
     Executor exe2(deviceStateVec, numQubits, schedule);
     exe2.run();
 #endif
-#elif BACKEND == 2
+#elif GPU_BACKEND == 2
     gates.clear();
     for (size_t lgID = 0; lgID < schedule.localGroups.size(); lgID++) {
         auto& lg = schedule.localGroups[lgID];
@@ -61,7 +61,7 @@ int Circuit::run(bool copy_back, bool destroy) {
 
     if (copy_back) {
         result.resize(1ll << numQubits); // very slow ...
-#if BACKEND == 0 || BACKEND == 2
+#if GPU_BACKEND == 0 || GPU_BACKEND == 2
         kernelDeviceToHost((qComplex*)result.data(), deviceStateVec[0], numQubits);
 #else
         qindex elements = 1ll << (numQubits - MyGlobalVars::bit);
@@ -163,7 +163,7 @@ bool Circuit::localAmpAt(qindex idx, ResultItem& item) {
 
 void Circuit::masterCompile() {
     Logger::add("Total Gates %d", int(gates.size()));
-#if BACKEND == 1 || BACKEND == 2 || BACKEND == 3 || BACKEND == 4 || BACKEND == 5
+#if GPU_BACKEND == 1 || GPU_BACKEND == 2 || GPU_BACKEND == 3 || GPU_BACKEND == 4 || GPU_BACKEND == 5
     Compiler compiler(numQubits, gates);
     schedule = compiler.run();
     int totalGroups = 0;

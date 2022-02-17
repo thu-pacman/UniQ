@@ -44,7 +44,7 @@ std::vector<std::pair<std::vector<Gate>, qindex>> Compiler::moveToNext(LocalGrou
         std::vector<Gate> gates = lg.fullGroups[i-1].gates;
         std::reverse(gates.begin(), gates.end());
         assert(lg.fullGroups[i-1].relatedQubits != 0);
-#if BACKEND == 3
+#if GPU_BACKEND == 3
         SimpleCompiler backCompiler(numQubits, numQubits - 2 * MyGlobalVars::bit, numQubits - 2 * MyGlobalVars::bit, gates,
                                         false, lg.fullGroups[i-1].relatedQubits, lg.fullGroups[i].relatedQubits);
 #else
@@ -140,7 +140,7 @@ Schedule Compiler::run() {
         }
         AdvanceCompiler overlapCompiler(numQubits, overlapLocals, overlapBlasForbid, moveBack[id].first);
         AdvanceCompiler fullCompiler(numQubits, gg.relatedQubits, 0, gg.gates);
-        switch (BACKEND) {
+        switch (GPU_BACKEND) {
             case 1: {
                 lg.overlapGroups = overlapCompiler.run(state, true, false, LOCAL_QUBIT_SIZE, BLAS_MAT_LIMIT, numLocalQubits - MyGlobalVars::bit).fullGroups;
                 lg.fullGroups = fullCompiler.run(state, true, false, LOCAL_QUBIT_SIZE, BLAS_MAT_LIMIT, numLocalQubits).fullGroups;
@@ -281,7 +281,7 @@ LocalGroup AdvanceCompiler::run(State& state, bool usePerGate, bool useBLAS, int
                     bestEff = eff;
                 }
             }    
-            // printf("BACKEND %s\n", bestBackend == Backend::BLAS ? "blas" : "pergate");
+            // printf("GPU_BACKEND %s\n", bestBackend == Backend::BLAS ? "blas" : "pergate");
         } else if (usePerGate && !useBLAS) {
             fillRelated(related, state.layout);
             memset(full, 0, sizeof(full));

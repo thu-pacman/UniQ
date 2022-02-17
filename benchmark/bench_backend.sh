@@ -7,16 +7,16 @@ cd ../scripts
 
 name=$head-group
 mkdir -p $name
-./check_wrapper.sh $name -DBACKEND=group -DSHOW_SUMMARY=on -DSHOW_SCHEDULE=off -DUSE_DOUBLE=on -DUSE_MPI=off 2>&1 | tee $name/std.out
+./check_wrapper.sh $name -DGPU_BACKEND=group -DSHOW_SUMMARY=on -DSHOW_SCHEDULE=off -DUSE_DOUBLE=on -DUSE_MPI=off 2>&1 | tee $name/std.out
 grep -r "Time Cost" $name/*.log | tee ../benchmark/logs/backend.log
 
 name=$head-blas
 mkdir -p $name
-./check_wrapper.sh $name -DBACKEND=blas -DSHOW_SUMMARY=on -DSHOW_SCHEDULE=off -DUSE_DOUBLE=on -DUSE_MPI=off 2>&1 | tee $name/std.out
+./check_wrapper.sh $name -DGPU_BACKEND=blas -DSHOW_SUMMARY=on -DSHOW_SCHEDULE=off -DUSE_DOUBLE=on -DUSE_MPI=off 2>&1 | tee $name/std.out
 grep -r "Time Cost" $name/*.log | tee -a ../benchmark/logs/backend.log
 
 name=$head-mix
 mkdir -p $name
-./check_wrapper.sh $name -DBACKEND=mix -DSHOW_SUMMARY=on -DSHOW_SCHEDULE=off -DUSE_DOUBLE=on -DEVALUATOR_PREPROCESS=on -DUSE_MPI=off 2>&1 | tee $name/std.out
+./check_wrapper.sh $name -DGPU_BACKEND=mix -DSHOW_SUMMARY=on -DSHOW_SCHEDULE=off -DUSE_DOUBLE=on -DEVALUATOR_PREPROCESS=on -DUSE_MPI=off 2>&1 | tee $name/std.out
 grep -r "Time Cost" $name/*.log | tee -a ../benchmark/logs/backend.log
 

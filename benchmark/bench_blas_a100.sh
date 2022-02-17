@@ -16,7 +16,7 @@ cd ../scripts
 
 name=$head-m3
 mkdir -p $name
-tests=$tests ./check_wrapper.sh $name -DBACKEND=blas -DSHOW_SUMMARY=on -DSHOW_SCHEDULE=off -DUSE_DOUBLE=on -DMAT=3 -DMIN_MAT=3 2>&1 | tee $name/std.out
+tests=$tests ./check_wrapper.sh $name -DGPU_BACKEND=blas -DSHOW_SUMMARY=on -DSHOW_SCHEDULE=off -DUSE_DOUBLE=on -DMAT=3 -DMIN_MAT=3 2>&1 | tee $name/std.out
 echo "+++++ 3" | tee $logdir/blas-profile.log 
 for test in ${tests[*]}; do
     echo "===== $test" | tee -a $name/circ.profile
@@ -29,7 +29,7 @@ name3=$name
 
 name=$head-m4
 mkdir -p $name
-tests=$tests ./check_wrapper.sh $name -DBACKEND=blas -DSHOW_SUMMARY=on -DSHOW_SCHEDULE=off -DUSE_DOUBLE=on -DMAT=4 2>&1 | tee $name/std.out
+tests=$tests ./check_wrapper.sh $name -DGPU_BACKEND=blas -DSHOW_SUMMARY=on -DSHOW_SCHEDULE=off -DUSE_DOUBLE=on -DMAT=4 2>&1 | tee $name/std.out
 echo "+++++ 4" | tee -a $logdir/blas-profile.log
 for test in ${tests[*]}; do
     echo "===== $test" | tee -a $name/circ.profile
@@ -42,7 +42,7 @@ name4=$name
 
 name=$head-m5
 mkdir -p $name
-tests=$tests ./check_wrapper.sh $name -DBACKEND=blas -DSHOW_SUMMARY=on -DSHOW_SCHEDULE=off -DUSE_DOUBLE=on -DMAT=5 2>&1 | tee $name/std.out
+tests=$tests ./check_wrapper.sh $name -DGPU_BACKEND=blas -DSHOW_SUMMARY=on -DSHOW_SCHEDULE=off -DUSE_DOUBLE=on -DMAT=5 2>&1 | tee $name/std.out
 echo "+++++ 5" | tee -a $logdir/blas-profile.log
 for test in ${tests[*]}; do
     echo "===== $test" | tee -a $name/circ.profile
@@ -55,7 +55,7 @@ name5=$name
 
 name=$head-m6
 mkdir -p $name
-tests=$tests ./check_wrapper.sh $name -DBACKEND=blas -DSHOW_SUMMARY=on -DSHOW_SCHEDULE=off -DUSE_DOUBLE=on -DMAT=6 2>&1 | tee $name/std.out
+tests=$tests ./check_wrapper.sh $name -DGPU_BACKEND=blas -DSHOW_SUMMARY=on -DSHOW_SCHEDULE=off -DUSE_DOUBLE=on -DMAT=6 2>&1 | tee $name/std.out
 echo "+++++ 6" | tee -a $logdir/blas-profile.log
 for test in ${tests[*]}; do
     echo "===== $test" | tee -a $name/circ.profile
@@ -68,7 +68,7 @@ name6=$name
 
 name=$head-m7
 mkdir -p $name
-tests=$tests ./check_wrapper.sh $name -DBACKEND=blas -DSHOW_SUMMARY=on -DSHOW_SCHEDULE=off -DUSE_DOUBLE=on -DMAT=7 2>&1 | tee $name/std.out
+tests=$tests ./check_wrapper.sh $name -DGPU_BACKEND=blas -DSHOW_SUMMARY=on -DSHOW_SCHEDULE=off -DUSE_DOUBLE=on -DMAT=7 2>&1 | tee $name/std.out
 echo "+++++ 7" | tee -a $logdir/blas-profile.log
 for test in ${tests[*]}; do
     echo "===== $test" | tee -a $name/circ.profile
@@ -81,7 +81,7 @@ name7=$name
 
 name=$head-m8
 mkdir -p $name
-tests=$tests ./check_wrapper.sh $name -DBACKEND=blas -DSHOW_SUMMARY=on -DSHOW_SCHEDULE=off -DUSE_DOUBLE=on -DMAT=8 2>&1 | tee $name/std.out
+tests=$tests ./check_wrapper.sh $name -DGPU_BACKEND=blas -DSHOW_SUMMARY=on -DSHOW_SCHEDULE=off -DUSE_DOUBLE=on -DMAT=8 2>&1 | tee $name/std.out
 echo "+++++ 8" | tee -a $logdir/blas-profile.log
 for test in ${tests[*]}; do
     echo "===== $test" | tee -a $name/circ.profile
@@ -94,7 +94,7 @@ name8=$name
 
 name=$head-m9
 mkdir -p $name
-tests=$tests ./check_wrapper.sh $name -DBACKEND=blas -DSHOW_SUMMARY=on -DSHOW_SCHEDULE=off -DUSE_DOUBLE=on -DMAT=9 2>&1 | tee $name/std.out
+tests=$tests ./check_wrapper.sh $name -DGPU_BACKEND=blas -DSHOW_SUMMARY=on -DSHOW_SCHEDULE=off -DUSE_DOUBLE=on -DMAT=9 2>&1 | tee $name/std.out
 echo "+++++ 9" | tee -a $logdir/blas-profile.log
 for test in ${tests[*]}; do
     echo "===== $test" | tee -a $name/circ.profile
@@ -107,7 +107,7 @@ name9=$name
 
 name=$head-m10
 mkdir -p $name
-tests=$tests ./check_wrapper.sh $name -DBACKEND=blas -DSHOW_SUMMARY=on -DSHOW_SCHEDULE=off -DUSE_DOUBLE=on -DMAT=10 2>&1 | tee $name/std.out
+tests=$tests ./check_wrapper.sh $name -DGPU_BACKEND=blas -DSHOW_SUMMARY=on -DSHOW_SCHEDULE=off -DUSE_DOUBLE=on -DMAT=10 2>&1 | tee $name/std.out
 echo "+++++ 10" | tee -a $logdir/blas-profile.log
 for test in ${tests[*]}; do
     echo "===== $test" | tee -a $name/circ.profile

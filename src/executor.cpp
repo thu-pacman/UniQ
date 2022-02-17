@@ -106,7 +106,7 @@ void Executor::inplaceAll2All(int commSize, std::vector<int> comm, const State& 
 
     qComplex* tmpBuffer[MyGlobalVars::localGPUs];
     size_t tmpStart = 1ll << numLocalQubits;
-    if (BACKEND == 3 || BACKEND == 4)
+    if (GPU_BACKEND == 3 || GPU_BACKEND == 4)
         tmpStart <<= 1;
     for (int i = 0; i < MyGlobalVars::localGPUs; i++)
         tmpBuffer[i] = deviceStateVec[i] + tmpStart;
