@@ -8,11 +8,17 @@
 #include "utils.h"
 #include "compiler.h"
 #include "logger.h"
-#include "executor.h"
 #ifdef USE_GPU
+#include "cuda/cuda_executor.h"
 #include "cuda/entry.h"
 #endif
 using namespace std;
+
+#ifdef USE_GPU
+typedef CudaImpl::CudaExecutor DevExecutor;
+#else
+TD // compile error
+#endif
 
 int Circuit::run(bool copy_back, bool destroy) {
 #ifdef USE_GPU
@@ -28,12 +34,12 @@ int Circuit::run(bool copy_back, bool destroy) {
     kernelExecSimple(deviceStateVec[0], numQubits, gates);
 #elif GPU_BACKEND == 1 || GPU_BACKEND == 3 || GPU_BACKEND == 4 || GPU_BACKEND == 5
 #if MODE == 0
-    Executor(deviceStateVec, numQubits, schedule).run();
+    DevExecutor(deviceStateVec, numQubits, schedule).run();
 #elif MODE == 1
-    Executor exe1(deviceStateVec, numQubits, schedule);
+    DecExecutor exe1(deviceStateVec, numQubits, schedule);
     exe1.run();
     exe1.dm_transpose();
-    Executor exe2(deviceStateVec, numQubits, schedule);
+    DevExecutor exe2(deviceStateVec, numQubits, schedule);
     exe2.run();
 #endif
 #elif GPU_BACKEND == 2
