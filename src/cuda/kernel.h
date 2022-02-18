@@ -108,6 +108,7 @@ static const char *cuttGetErrorString(cuttResult error) {
     } \
 }
 
+#if USE_MPI
 #define checkNCCLErrors(stmt) {                         \
   ncclResult_t err= stmt;                             \
   if (err != ncclSuccess) {                            \
@@ -115,6 +116,7 @@ static const char *cuttGetErrorString(cuttResult error) {
       exit(1); \
   }                                                 \
 }
+#endif
 
 namespace MyGlobalVars {
     extern std::unique_ptr<cudaStream_t[]> streams;

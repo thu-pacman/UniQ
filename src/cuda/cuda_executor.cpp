@@ -415,6 +415,7 @@ void CudaExecutor::dm_transpose() {
     }
     allBarrier();
     auto start = std::chrono::system_clock::now();
+#if USE_MPI
     idx_t partSize = idx_t(1) << (numQubits - 2 * MyGlobalVars::bit);
     checkNCCLErrors(ncclGroupStart());
     for (int xr = 0; xr < MyGlobalVars::numGPUs; xr++) {
@@ -463,6 +464,9 @@ void CudaExecutor::dm_transpose() {
     }
     checkNCCLErrors(ncclGroupEnd());
     allBarrier();
+#else
+    UNIMPLEMENTED();
+#endif
     auto end = std::chrono::system_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
     Logger::add("All2all Time: %d us", int(duration.count()));

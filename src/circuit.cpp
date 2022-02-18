@@ -314,7 +314,7 @@ void Circuit::printState() {
         item.print();
     results.clear();
     for (idx_t i = 0; i < (1ll << numQubits); i++) {
-        if (result[i].norm() > 0.001) {
+        if (std::norm(result[i]) > 0.001) {
             idx_t logicID = toLogicID(i);
             if (logicID >= 128) {
                 results.push_back(ResultItem(toLogicID(i), result[i]));
