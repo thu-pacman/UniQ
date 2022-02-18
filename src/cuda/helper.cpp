@@ -3,14 +3,14 @@
 #include "cuda/kernel.h"
 
 namespace CudaImpl {
-cpx getAmp (std::vector<cpx*>& deviceStateVec, int gpuID, idx_t localIdx) {
+cpx getAmp (const std::vector<cpx*>& deviceStateVec, int gpuID, idx_t localIdx) {
     checkCudaErrors(cudaSetDevice(gpuID));
     cpx ret;
     cudaMemcpy(&ret, deviceStateVec[gpuID] + localIdx, sizeof(cpx), cudaMemcpyDeviceToHost);
     return ret;
 }
 
-void copyBackState(std::vector<cpx>& result, std::vector<cpx*>& deviceStateVec, int numQubits) {
+void copyBackState(std::vector<cpx>& result, const std::vector<cpx*>& deviceStateVec, int numQubits) {
     result.resize(1ll << numQubits); // very slow ...
 #if GPU_BACKEND == 0 || GPU_BACKEND == 2
     cudaMemcpy((cpx*)result.data(), deviceStateVec[0], sizeof(cpx) << numQubits, cudaMemcpyDeviceToHost);
@@ -28,7 +28,7 @@ void destroyState(std::vector<cpx*>& deviceStateVec) {
     }
 }
 
-void initGPUMatrix(std::vector<cpx*>& deviceMats, int matQubit, std::vector<std::unique_ptr<cpx[]>>& matrix) {
+void initGPUMatrix(std::vector<cpx*>& deviceMats, int matQubit, const std::vector<std::unique_ptr<cpx[]>>& matrix) {
     assert(deviceMats.size() == 0);
     deviceMats.clear();
     int n = 1 << matQubit;
@@ -48,7 +48,7 @@ void initGPUMatrix(std::vector<cpx*>& deviceMats, int matQubit, std::vector<std:
 }
 
 
-void initCuttPlans(std::vector<cuttHandle*>& cuttPlanPointers, std::vector<int*>& cuttPermPointers, std::vector<int>& locals, int numLocalQubits) {
+void initCuttPlans(std::vector<cuttHandle*>& cuttPlanPointers, const std::vector<int*>& cuttPermPointers, const std::vector<int>& locals, int numLocalQubits) {
     int total = cuttPlanPointers.size();
     cuttHandle plans[total];
     std::vector<int> dim(numLocalQubits, 2);

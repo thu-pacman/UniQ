@@ -1,10 +1,10 @@
 project(QCSimulator)
 aux_source_directory(. SRC_CXX)
-MESSAGE(INFO "src list ${SRC_CXX}")
+MESSAGE(STATUS "src list: ${SRC_CXX}")
 
 if (HARDWARE STREQUAL "gpu")
     aux_source_directory(./cuda SRC_CUDA)
-    MESSAGE(INFO "cuda list ${SRC_CUDA}")
+    MESSAGE(STATUS "cuda list: ${SRC_CUDA}")
     cuda_add_library(QCSimulator ${SRC_CXX} ${SRC_CUDA})
 elseif(HARDWARE STREQUAL "cpu")
     add_library(QCSimulator ${SRC_CXX})
