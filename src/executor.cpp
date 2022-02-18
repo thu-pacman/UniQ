@@ -6,7 +6,7 @@
 
 #include "utils.h"
 #include "assert.h"
-#include "kernel.h"
+#include "cuda/kernel.h"
 #include "dbg.h"
 #include "logger.h"
 

@@ -5,20 +5,24 @@
 #include <chrono>
 #include <mpi.h>
 #include <algorithm>
-#include <cuda_profiler_api.h>
 #include "utils.h"
-#include "kernel.h"
 #include "compiler.h"
 #include "logger.h"
 #include "executor.h"
+#ifdef USE_GPU
+#include "cuda/entry.h"
+#endif
 using namespace std;
 
 int Circuit::run(bool copy_back, bool destroy) {
-    kernelInit(deviceStateVec, numQubits);
-    for (int i = 0; i < MyGlobalVars::localGPUs; i++) {
-        checkCudaErrors(cudaSetDevice(i));
-        checkCudaErrors(cudaProfilerStart());
-    }
+#ifdef USE_GPU
+    CudaImpl::initState(deviceStateVec, numQubits);
+#else
+    UNIMPLEMENTED()
+#endif
+#ifdef USE_GPU
+    CudaImpl::startProfiler();
+#endif
     auto start = chrono::system_clock::now();
 #if GPU_BACKEND == 0
     kernelExecSimple(deviceStateVec[0], numQubits, gates);
@@ -52,28 +56,25 @@ int Circuit::run(bool copy_back, bool destroy) {
     kernelExecSimple(deviceStateVec[0], numQubits, gates);
 #endif
     auto end = chrono::system_clock::now();
-    for (int i = 0; i < MyGlobalVars::localGPUs; i++) {
-        checkCudaErrors(cudaSetDevice(i));
-        checkCudaErrors(cudaProfilerStop());
-    }
+#ifdef USE_GPU
+    CudaImpl::startProfiler();
+#endif
     auto duration = chrono::duration_cast<chrono::microseconds>(end - start);
     Logger::add("Time Cost: %d us", int(duration.count()));
 
     if (copy_back) {
-        result.resize(1ll << numQubits); // very slow ...
-#if GPU_BACKEND == 0 || GPU_BACKEND == 2
-        kernelDeviceToHost((cpx*)result.data(), deviceStateVec[0], numQubits);
+#ifdef USE_GPU
+        CudaImpl::copyBackState(result, deviceStateVec, numQubits);
 #else
-        idx_t elements = 1ll << (numQubits - MyGlobalVars::bit);
-        for (int g = 0; g < MyGlobalVars::localGPUs; g++) {
-            kernelDeviceToHost((cpx*)result.data() + elements * g, deviceStateVec[g], numQubits - MyGlobalVars::bit);
-        }
+        UNIMPLEMENTED();
 #endif
     }
     if (destroy) {
-        for (int g = 0; g < MyGlobalVars::localGPUs; g++) {
-            kernelDestroy(deviceStateVec[g]);
-        }
+#ifdef USE_GPU
+        CudaImpl::destroyState(deviceStateVec);
+#else
+        UNIMPLEMENTED();
+#endif
     }
     return duration.count();
 }
@@ -139,9 +140,12 @@ cpx Circuit::ampAtGPU(idx_t idx) {
 #endif
         idx_t localGPUAmp = (1ll << numQubits) / MyGlobalVars::numGPUs;
         int gpuID = localID / localGPUAmp;
-        idx_t localGPUID = localID % localGPUAmp;
-        checkCudaErrors(cudaSetDevice(gpuID));
-        ret = kernelGetAmp(deviceStateVec[gpuID], localGPUID);
+        idx_t localIdx = localID % localGPUAmp;
+#ifdef USE_GPU
+        ret = CudaImpl::getAmp(deviceStateVec, gpuID, localIdx);
+#else
+        UNIMPLEMENTED(); // not implemented
+#endif
 #if USE_MPI
     }
     MPI_Bcast(&ret, 1, MPI_Complex, rankID, MPI_COMM_WORLD);

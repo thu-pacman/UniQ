@@ -1,4 +1,4 @@
-#include "kernel.h"
+#include "cuda/kernel.h"
 #include <cstdio>
 #include <assert.h>
 #include <map>

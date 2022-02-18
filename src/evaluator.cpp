@@ -1,4 +1,5 @@
 #include "evaluator.h"
+#include <cstring>
 
 Evaluator* Evaluator::instance_ptr = nullptr;
 

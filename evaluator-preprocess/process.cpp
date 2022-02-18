@@ -10,6 +10,8 @@
 #include <cuComplex.h>
 #include "circuit.h"
 #include "logger.h"
+#include "cuda/entry.h"
+#include "cuda/kernel.h"
 using namespace std;
 
 #define DIFF_QUBIT_NUMS 7

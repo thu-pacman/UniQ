@@ -1,6 +1,5 @@
 #pragma once
 #include <vector>
-#include <cutt.h>
 #include <memory>
 #include <string>
 #include "utils.h"
@@ -11,6 +10,12 @@ enum class Backend {
 };
 
 std::string to_string(Backend b);
+
+#if USE_GPU
+typedef unsigned int cuttHandle;
+#else
+QAQ // raise compile error
+#endif
 
 struct State {
     std::vector<int> pos;

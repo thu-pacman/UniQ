@@ -1,44 +1,10 @@
-#include "kernel.h"
+#include "cuda/kernel.h"
 #include <cstdio>
 #include <assert.h>
 using namespace std;
 
 const int SINGLE_SIZE_DEP = 6; // handle 1 << SINGLE_SIZE_DEP items per thread
 const int REDUCE_BLOCK_DEP = 6; // 1 << REDUCE_BLOCK_DEP blocks in final reduction
-
-void kernelInit(std::vector<cpx*> &deviceStateVec, int numQubits) {
-    size_t size = (sizeof(cuCpx) << numQubits) >> MyGlobalVars::bit;
-    if ((MyGlobalVars::numGPUs > 1 && !INPLACE) || GPU_BACKEND == 3 || GPU_BACKEND == 4 || MODE > 0) {
-        size <<= 1;
-    }
-#if INPLACE
-    size += sizeof(cuCpx) * (1 << MAX_SLICE);
-#endif
-#if GPU_BACKEND == 2
-    deviceStateVec.resize(1);
-    checkCudaErrors(cudaSetDevice(0));
-    checkCudaErrors(cudaMalloc(&reinterpret_cast<cuCpx*>(deviceStateVec[0]), sizeof(cuCpx) << numQubits));
-    checkCudaErrors(cudaMemsetAsync(reinterpret_cast<cuCpx*>(deviceStateVec[0]), 0, sizeof(cuCpx) << numQubits, MyGlobalVars::streams[0]));
-#else
-    deviceStateVec.resize(MyGlobalVars::localGPUs);
-    for (int g = 0; g < MyGlobalVars::localGPUs; g++) {
-        checkCudaErrors(cudaSetDevice(g));
-        checkCudaErrors(cudaMalloc(reinterpret_cast<cuCpx**>(&deviceStateVec[g]), size));
-        checkCudaErrors(cudaMemsetAsync(reinterpret_cast<cuCpx*>(deviceStateVec[g]), 0, size, MyGlobalVars::streams[g]));
-    }
-#endif
-    cuCpx one = make_cuComplex(1.0, 0.0);
-    if  (!USE_MPI || MyMPI::rank == 0) {
-        checkCudaErrors(cudaMemcpyAsync(reinterpret_cast<cuCpx*>(deviceStateVec[0]), &one, sizeof(cuCpx), cudaMemcpyHostToDevice, MyGlobalVars::streams[0])); // state[0] = 1
-    }
-#if GPU_BACKEND == 1 || GPU_BACKEND == 3 || GPU_BACKEND == 4 || GPU_BACKEND == 5
-    initControlIdx();
-#endif
-    for (int g = 0; g < MyGlobalVars::localGPUs; g++) {
-        checkCudaErrors(cudaStreamSynchronize(MyGlobalVars::streams[g]));
-    }
-}
-
 
 #define SINGLE_GATE_BEGIN \
     idx_t idx = blockIdx.x * blockSize + threadIdx.x; \
@@ -544,20 +510,6 @@ value_t kernelMeasure(cpx* deviceStateVec_, int numQubits, int targetQubit) {
     checkCudaErrors(cudaFree(ans2));
     checkCudaErrors(cudaFreeHost(ans3));
     return ret;
-}
-
-cpx kernelGetAmp(cpx* deviceStateVec, idx_t idx) {
-    cpx ret;
-    cudaMemcpy(&ret, deviceStateVec + idx, sizeof(cpx), cudaMemcpyDeviceToHost);
-    return ret;
-}
-
-void kernelDeviceToHost(cpx* hostStateVec, cpx* deviceStateVec, int numQubits) {
-    cudaMemcpy(hostStateVec, deviceStateVec, sizeof(cpx) << numQubits, cudaMemcpyDeviceToHost);
-}
-
-void kernelDestroy(cpx* deviceStateVec) {
-    cudaFree(deviceStateVec);
 }
 
 // copied and modified from DMSim project

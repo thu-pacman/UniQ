@@ -3,20 +3,20 @@
 #include <cstring>
 #include "logger.h"
 
+#ifdef USE_GPU
+#include "cuda/entry.h"
+#endif
+
 namespace MyGlobalVars {
 int numGPUs;
 int localGPUs;
 int bit;
-std::unique_ptr<cudaStream_t[]> streams;
-std::unique_ptr<cudaStream_t[]> streams_comm;
-std::unique_ptr<cublasHandle_t[]> blasHandles;
-std::unique_ptr<cudaEvent_t[]> events;
-#if USE_MPI
-std::unique_ptr<ncclComm_t[]> ncclComms;
-#endif
 
 void init() {
-    checkCudaErrors(cudaGetDeviceCount(&localGPUs));
+#ifdef USE_GPU
+    CudaImpl::initCudaObjects();
+#else
+    localGPUs = 1;
     #if USE_MPI
         numGPUs = MyMPI::commSize * localGPUs;
     #else
@@ -24,42 +24,7 @@ void init() {
     #endif
     Logger::add("Local GPU: %d", localGPUs);
     bit = get_bit(numGPUs);
-
-    streams = std::make_unique<cudaStream_t[]>(MyGlobalVars::localGPUs);
-    streams_comm = std::make_unique<cudaStream_t[]>(MyGlobalVars::localGPUs);
-    blasHandles = std::make_unique<cublasHandle_t[]>(MyGlobalVars::localGPUs);
-    events = std::make_unique<cudaEvent_t[]>(MyGlobalVars::localGPUs);
-    checkCuttErrors(cuttInit());
-    for (int i = 0; i < localGPUs; i++) {
-        checkCudaErrors(cudaSetDevice(i));
-        cudaDeviceProp prop;
-        cudaGetDeviceProperties(&prop, i);
-        Logger::add("[%d] %s", i, prop.name);
-        for (int j = 0; j < localGPUs; j++)
-            if (i != j && (i ^ j) < 4) {
-                checkCudaErrors(cudaDeviceEnablePeerAccess(j, 0));
-            }
-        checkCudaErrors(cudaStreamCreate(&streams[i]);)
-        checkBlasErrors(cublasCreate(&blasHandles[i]));
-        checkBlasErrors(cublasSetStream(blasHandles[i], streams[i]));
-        checkCudaErrors(cudaStreamCreate(&streams_comm[i]));
-        checkCudaErrors(cudaDeviceSetSharedMemConfig(cudaSharedMemBankSizeEightByte));
-        checkCudaErrors(cudaEventCreate(&events[i]));
-    }
-    #if USE_MPI
-        checkMPIErrors(MPI_Barrier(MPI_COMM_WORLD));
-        ncclUniqueId id;
-        if (MyMPI::rank == 0)
-            checkNCCLErrors(ncclGetUniqueId(&id));
-        checkMPIErrors(MPI_Bcast(&id, sizeof(id), MPI_BYTE, 0, MPI_COMM_WORLD));
-        ncclComms = std::make_unique<ncclComm_t[]>(MyGlobalVars::localGPUs);
-        checkNCCLErrors(ncclGroupStart());
-        for (int i = 0; i < localGPUs; i++) {
-            checkCudaErrors(cudaSetDevice(i));
-            checkNCCLErrors(ncclCommInitRank(&ncclComms[i], numGPUs, id, MyMPI::rank * localGPUs + i));
-        }
-        checkNCCLErrors(ncclGroupEnd());
-    #endif
+#endif
 }
 };
 
