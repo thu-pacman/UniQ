@@ -12,10 +12,15 @@
 #include "cuda/cuda_executor.h"
 #include "cuda/entry.h"
 #endif
+#ifdef USE_CPU
+#include "cpu/cpu_executor.h"
+#endif
 using namespace std;
 
-#ifdef USE_GPU
+#if USE_GPU
 typedef CudaImpl::CudaExecutor DevExecutor;
+#elif USE_CPU
+typedef CpuImpl::CpuExecutor DevExecutor;
 #else
 TD // compile error
 #endif
@@ -30,9 +35,9 @@ int Circuit::run(bool copy_back, bool destroy) {
     CudaImpl::startProfiler();
 #endif
     auto start = chrono::system_clock::now();
-#if GPU_BACKEND == 0
-    kernelExecSimple(deviceStateVec[0], numQubits, gates);
-#elif GPU_BACKEND == 1 || GPU_BACKEND == 3 || GPU_BACKEND == 4 || GPU_BACKEND == 5
+// #if GPU_BACKEND == 0
+//     kernelExecSimple(deviceStateVec[0], numQubits, gates);
+// #elif GPU_BACKEND == 1 || GPU_BACKEND == 3 || GPU_BACKEND == 4 || GPU_BACKEND == 5
 #if MODE == 0
     DevExecutor(deviceStateVec, numQubits, schedule).run();
 #elif MODE == 1
@@ -42,25 +47,25 @@ int Circuit::run(bool copy_back, bool destroy) {
     DevExecutor exe2(deviceStateVec, numQubits, schedule);
     exe2.run();
 #endif
-#elif GPU_BACKEND == 2
-    gates.clear();
-    for (size_t lgID = 0; lgID < schedule.localGroups.size(); lgID++) {
-        auto& lg = schedule.localGroups[lgID];
-        for (size_t ggID = 0; ggID < lg.overlapGroups.size(); ggID++) {
-            auto& gg = lg.overlapGroups[ggID];
-            for (auto& g: gg.gates)
-                gates.push_back(g);
-        }
-        // if (lgID == 2) break;
-        for (size_t ggID = 0; ggID < lg.fullGroups.size(); ggID++) {
-            auto& gg = lg.fullGroups[ggID];
-            for (auto& g: gg.gates)
-                gates.push_back(g);
-        }
-    }
-    schedule.finalState = State(numQubits);
-    kernelExecSimple(deviceStateVec[0], numQubits, gates);
-#endif
+// #elif GPU_BACKEND == 2
+//     gates.clear();
+//     for (size_t lgID = 0; lgID < schedule.localGroups.size(); lgID++) {
+//         auto& lg = schedule.localGroups[lgID];
+//         for (size_t ggID = 0; ggID < lg.overlapGroups.size(); ggID++) {
+//             auto& gg = lg.overlapGroups[ggID];
+//             for (auto& g: gg.gates)
+//                 gates.push_back(g);
+//         }
+//         // if (lgID == 2) break;
+//         for (size_t ggID = 0; ggID < lg.fullGroups.size(); ggID++) {
+//             auto& gg = lg.fullGroups[ggID];
+//             for (auto& g: gg.gates)
+//                 gates.push_back(g);
+//         }
+//     }
+//     schedule.finalState = State(numQubits);
+//     kernelExecSimple(deviceStateVec[0], numQubits, gates);
+// #endif
     auto end = chrono::system_clock::now();
 #ifdef USE_GPU
     CudaImpl::startProfiler();

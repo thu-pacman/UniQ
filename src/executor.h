@@ -14,7 +14,7 @@ public:
 
 protected:
     // instructions
-    virtual void transpose(std::vector<cuttHandle> plans) = 0;
+    virtual void transpose(std::vector<transHandle> plans) = 0;
     virtual void inplaceAll2All(int commSize, std::vector<int> comm, const State& newState) = 0;
     virtual void all2all(int commSize, std::vector<int> comm) = 0;
     virtual void launchPerGateGroup(std::vector<Gate>& gates, KernelGate hostGates[], idx_t relatedQubits, int numLocalQubits) = 0;

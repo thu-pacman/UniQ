@@ -311,7 +311,7 @@ void CudaExecutor::launchBlasGroup(GateGroup& gg, int numLocalQubits) {
     cpx alpha = cpx(1.0, 0.0), beta = cpx(0.0, 0.0);
     for (int g = 0; g < MyGlobalVars::localGPUs; g++) {
         checkCudaErrors(cudaSetDevice(g));
-        checkCuttErrors(cuttExecute(gg.cuttPlans[g], deviceStateVec[g], deviceBuffer[g]));
+        checkCuttErrors(cuttExecute(gg.transPlans[g], deviceStateVec[g], deviceBuffer[g]));
         int K = 1 << gg.matQubit;
         checkBlasErrors(cublasGEMM(MyGlobalVars::blasHandles[g], CUBLAS_OP_N, CUBLAS_OP_N,
             K, numElements / K, K, // M, N, K
@@ -330,7 +330,7 @@ void CudaExecutor::launchBlasGroupSliced(GateGroup& gg, int numLocalQubits, int 
     for (int g = 0; g < MyGlobalVars::localGPUs; g++) {
         checkCudaErrors(cudaSetDevice(g));
         int pID = partID[sliceID * MyGlobalVars::localGPUs + g];
-        checkCuttErrors(cuttExecute(gg.cuttPlans[g], deviceStateVec[g] + partSize * pID, deviceBuffer[g] + partSize * pID));
+        checkCuttErrors(cuttExecute(gg.transPlans[g], deviceStateVec[g] + partSize * pID, deviceBuffer[g] + partSize * pID));
         checkBlasErrors(cublasGEMM(MyGlobalVars::blasHandles[g], CUBLAS_OP_N, CUBLAS_OP_N,
             K, numElements / K, K, // M, N, K
             reinterpret_cast<cuCpx*>(&alpha), reinterpret_cast<cuCpx*>(gg.deviceMats[g]), K, // alpha, a, lda

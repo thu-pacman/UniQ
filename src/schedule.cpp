@@ -385,14 +385,14 @@ State GateGroup::initBlasState(const State& oldState, int numLocalQubits) {
     return newState;
 }
 
-void GateGroup::getCuttPlanPointers(int numLocalQubits, std::vector<cuttHandle*> &cuttPlanPointers, std::vector<int*> &cuttPermPointers, std::vector<int> &locals) {
-    cuttPlans.clear();
+void GateGroup::getCuttPlanPointers(int numLocalQubits, std::vector<transHandle*> &transPlanPointers, std::vector<int*> &transPermPointers, std::vector<int> &locals) {
+    transPlans.clear();
     if (backend != Backend::BLAS)
         return;
-    int startSize = cuttPlans.size();
-    cuttPlans.resize(startSize + MyGlobalVars::localGPUs);
-    cuttPlanPointers.push_back(cuttPlans.data() + startSize);
-    cuttPermPointers.push_back(cuttPerm.data());
+    int startSize = transPlans.size();
+    transPlans.resize(startSize + MyGlobalVars::localGPUs);
+    transPlanPointers.push_back(transPlans.data() + startSize);
+    transPermPointers.push_back(cuttPerm.data());
     locals.push_back(numLocalQubits);
 }
 
@@ -557,26 +557,26 @@ State LocalGroup::initFirstGroupState(const State& oldState, int numQubits, cons
     return newState;
 }
 
-void LocalGroup::getCuttPlanPointers(int numLocalQubits, std::vector<cuttHandle*> &cuttPlanPointers, std::vector<int*> &cuttPermPointers, std::vector<int> &locals, bool isFirstGroup) {
-    cuttPlans.clear();
+void LocalGroup::getCuttPlanPointers(int numLocalQubits, std::vector<transHandle*> &transPlanPointers, std::vector<int*> &transPermPointers, std::vector<int> &locals, bool isFirstGroup) {
+    transPlans.clear();
 #if not INPLACE > 0
     if (isFirstGroup) {
         for (int g = 0; g < MyGlobalVars::localGPUs; g++) {
-            cuttPlans.push_back(cuttHandle());
+            transPlans.push_back(transHandle());
         }
     } else {
-        int startSize = cuttPlans.size();
-        cuttPlans.resize(startSize + MyGlobalVars::localGPUs);
-        cuttPlanPointers.push_back(cuttPlans.data() + startSize);
-        cuttPermPointers.push_back(cuttPerm.data());
+        int startSize = transPlans.size();
+        transPlans.resize(startSize + MyGlobalVars::localGPUs);
+        transPlanPointers.push_back(transPlans.data() + startSize);
+        transPermPointers.push_back(cuttPerm.data());
         locals.push_back(numLocalQubits);
     }
 #endif
     for (auto& gg: overlapGroups) {
-        gg.getCuttPlanPointers(numLocalQubits - MyGlobalVars::bit, cuttPlanPointers, cuttPermPointers, locals);
+        gg.getCuttPlanPointers(numLocalQubits - MyGlobalVars::bit, transPlanPointers, transPermPointers, locals);
     }
     for (auto& gg: fullGroups) {
-        gg.getCuttPlanPointers(numLocalQubits, cuttPlanPointers, cuttPermPointers, locals);
+        gg.getCuttPlanPointers(numLocalQubits, transPlanPointers, transPermPointers, locals);
     }
 }
 
@@ -793,18 +793,18 @@ void Schedule::initMatrix(int numQubits) {
 
 
 void Schedule::initCuttPlans(int numLocalQubits) {
-    std::vector<cuttHandle*> cuttPlanPointers;
-    std::vector<int*> cuttPermPointers;
+    std::vector<transHandle*> transPlanPointers;
+    std::vector<int*> transPermPointers;
     std::vector<int> locals;
     for (size_t i = 0; i < localGroups.size(); i++) {
-        localGroups[i].getCuttPlanPointers(numLocalQubits, cuttPlanPointers, cuttPermPointers, locals, i == 0);
+        localGroups[i].getCuttPlanPointers(numLocalQubits, transPlanPointers, transPermPointers, locals, i == 0);
     }
 
-    assert(cuttPlanPointers.size() == cuttPermPointers.size());
-    assert(cuttPermPointers.size() == locals.size());
+    assert(transPlanPointers.size() == transPermPointers.size());
+    assert(transPermPointers.size() == locals.size());
 
 #ifdef USE_GPU
-    CudaImpl::initCuttPlans(cuttPlanPointers, cuttPermPointers, locals, numLocalQubits);
+    CudaImpl::initCuttPlans(transPlanPointers, transPermPointers, locals, numLocalQubits);
 #else
     UNIMPLEMENTED()
 #endif

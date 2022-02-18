@@ -48,8 +48,8 @@ void initGPUMatrix(std::vector<cpx*>& deviceMats, int matQubit, const std::vecto
 }
 
 
-void initCuttPlans(std::vector<cuttHandle*>& cuttPlanPointers, const std::vector<int*>& cuttPermPointers, const std::vector<int>& locals, int numLocalQubits) {
-    int total = cuttPlanPointers.size();
+void initCuttPlans(std::vector<cuttHandle*>& transPlanPointers, const std::vector<int*>& transPermPointers, const std::vector<int>& locals, int numLocalQubits) {
+    int total = transPlanPointers.size();
     cuttHandle plans[total];
     std::vector<int> dim(numLocalQubits, 2);
     if (total == 0) return;
@@ -58,13 +58,13 @@ void initCuttPlans(std::vector<cuttHandle*>& cuttPlanPointers, const std::vector
 
     #pragma omp parallel for
     for (int i = 0; i < total; i++) {
-        checkCuttErrors(cuttPlan(&plans[i], locals[i], dim.data(), cuttPermPointers[i], sizeof(cpx), MyGlobalVars::streams[0], false));
+        checkCuttErrors(cuttPlan(&plans[i], locals[i], dim.data(), transPermPointers[i], sizeof(cpx), MyGlobalVars::streams[0], false));
     }
 
     for (int g = 0; g < MyGlobalVars::localGPUs; g++) {
         checkCudaErrors(cudaSetDevice(g));
         for (int i = 0; i < total; i++) {
-            checkCuttErrors(cuttActivatePlan(cuttPlanPointers[i] + g, plans[i], MyGlobalVars::streams[g], g));
+            checkCuttErrors(cuttActivatePlan(transPlanPointers[i] + g, plans[i], MyGlobalVars::streams[g], g));
         }
     }
 }

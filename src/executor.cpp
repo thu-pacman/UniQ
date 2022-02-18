@@ -34,7 +34,7 @@ void Executor::run() {
             if (INPLACE) {
                 this->inplaceAll2All(localGroup.a2aCommSize, localGroup.a2aComm, localGroup.state);
             } else {
-                this->transpose(localGroup.cuttPlans);
+                this->transpose(localGroup.transPlans);
                 this->all2all(localGroup.a2aCommSize, localGroup.a2aComm);
             }
             this->setState(localGroup.state);

@@ -37,7 +37,7 @@ std::vector<std::pair<std::vector<Gate>, idx_t>> Compiler::moveToNext(LocalGroup
     for (size_t i = 0; i < lg.fullGroups.size(); i++) {
         result.push_back(make_pair(std::vector<Gate>(), 0));
     }
-    return std::move(result);
+    return result;
 #endif
     result.push_back(make_pair(std::vector<Gate>(), 0));
     for (size_t i = 1; i < lg.fullGroups.size(); i++) {

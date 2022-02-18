@@ -12,9 +12,13 @@ enum class Backend {
 std::string to_string(Backend b);
 
 #if USE_GPU
-typedef unsigned int cuttHandle;
+#include <cutt.h>
+typedef cuttHandle transHandle;
+#elif USE_CPU
+#include <hptt.h>
+typedef hptt::Transpose<cpx> transHandle;
 #else
-QAQ // raise compile error
+QAQ // compile error
 #endif
 
 struct State {
@@ -46,7 +50,7 @@ struct GateGroup {
     int matQubit;
     Backend backend;
 
-    std::vector<cuttHandle> cuttPlans;
+    std::vector<transHandle> transPlans;
 
     std::vector<std::unique_ptr<cpx[]>> matrix;
     std::vector<cpx*> deviceMats;
@@ -71,7 +75,7 @@ struct GateGroup {
     void initCPUMatrix(int numLocalQubit);
     void initGPUMatrix();
     void initMatrix(int numLocalQubit);
-    void getCuttPlanPointers(int numLocalQubits, std::vector<cuttHandle*> &cuttPlanPointers, std::vector<int*> &cuttPermPointers, std::vector<int> &locals);
+    void getCuttPlanPointers(int numLocalQubits, std::vector<transHandle*> &transPlanPointers, std::vector<int*> &transPermPointers, std::vector<int> &locals);
 };
 
 struct LocalGroup {
@@ -84,13 +88,13 @@ struct LocalGroup {
     std::vector<GateGroup> fullGroups;
     idx_t relatedQubits;
 
-    std::vector<cuttHandle> cuttPlans;
+    std::vector<transHandle> transPlans;
     
     LocalGroup() = default;
     LocalGroup(LocalGroup&&) = default;
 
     bool contains(int i) { return (relatedQubits >> i) & 1; }
-    void getCuttPlanPointers(int numLocalQubits, std::vector<cuttHandle*> &cuttPlanPointers, std::vector<int*> &cuttPermPointers, std::vector<int> &locals, bool isFirstGroup = false);
+    void getCuttPlanPointers(int numLocalQubits, std::vector<transHandle*> &transPlanPointers, std::vector<int*> &transPermPointers, std::vector<int> &locals, bool isFirstGroup = false);
     State initState(const State& oldState, int numQubits, const std::vector<int>& newGlobals, idx_t overlapGlobals, idx_t overlapRelated);
     State initFirstGroupState(const State& oldState, int numQubits, const std::vector<int>& newGlobals);
     State initStateInplace(const State& oldState, int numQubits, const std::vector<int>& newGlobals, idx_t overlapGlobals);

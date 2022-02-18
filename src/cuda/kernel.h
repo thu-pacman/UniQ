@@ -139,3 +139,5 @@ namespace MyGlobalVars {
     #define cublasGEMM cublasCgemm
     #define NCCL_FLOAT_TYPE ncclFloat
 #endif
+
+const int THREAD_DEP = THREAD_DEP_DEFINED; // 1 << THREAD_DEP threads per block
