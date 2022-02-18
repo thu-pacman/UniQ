@@ -10,6 +10,8 @@
 
 #ifdef USE_GPU
 #include "cuda/entry.h"
+#elif USE_CPU
+#include "cpu/entry.h"
 #endif
 
 std::string to_string(Backend b) {
@@ -806,7 +808,7 @@ void Schedule::initCuttPlans(int numLocalQubits) {
 #ifdef USE_GPU
     CudaImpl::initCuttPlans(transPlanPointers, transPermPointers, locals, numLocalQubits);
 #else
-    UNIMPLEMENTED()
+    CpuImpl::initHpttPlans(transPlanPointers, transPermPointers, locals, numLocalQubits);
 #endif
 }
 

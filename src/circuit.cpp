@@ -14,6 +14,7 @@
 #endif
 #ifdef USE_CPU
 #include "cpu/cpu_executor.h"
+#include "cpu/entry.h"
 #endif
 using namespace std;
 
@@ -28,6 +29,8 @@ TD // compile error
 int Circuit::run(bool copy_back, bool destroy) {
 #ifdef USE_GPU
     CudaImpl::initState(deviceStateVec, numQubits);
+#elif USE_CPU
+    CpuImpl::initState(deviceStateVec, numQubits);
 #else
     UNIMPLEMENTED()
 #endif
@@ -76,6 +79,8 @@ int Circuit::run(bool copy_back, bool destroy) {
     if (copy_back) {
 #ifdef USE_GPU
         CudaImpl::copyBackState(result, deviceStateVec, numQubits);
+#elif USE_CPU
+        CpuImpl::copyBackState(result, deviceStateVec, numQubits);
 #else
         UNIMPLEMENTED();
 #endif
@@ -83,6 +88,8 @@ int Circuit::run(bool copy_back, bool destroy) {
     if (destroy) {
 #ifdef USE_GPU
         CudaImpl::destroyState(deviceStateVec);
+#elif USE_CPU
+        CpuImpl::destroyState(deviceStateVec);
 #else
         UNIMPLEMENTED();
 #endif
