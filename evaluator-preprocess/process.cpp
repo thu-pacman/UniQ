@@ -187,6 +187,6 @@ int main()
         process(qubit_nums[i]);
     }
     auto end = chrono::system_clock::now();
-    printf("process time %d ms\n", chrono::duration_cast<chrono::milliseconds>(end - start).count());
+    printf("process time %d ms\n", (int) chrono::duration_cast<chrono::milliseconds>(end - start).count());
     return 0;
 }

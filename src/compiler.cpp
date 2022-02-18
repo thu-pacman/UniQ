@@ -64,7 +64,7 @@ std::vector<std::pair<std::vector<Gate>, idx_t>> Compiler::moveToNext(LocalGroup
         result.push_back(make_pair(toRemoveGates, toRemove.fullGroups[0].relatedQubits));
         lg.fullGroups[i].relatedQubits |= toRemove.relatedQubits;
     }
-    return std::move(result);
+    return result;
 }
 
 Schedule Compiler::run() {
@@ -85,7 +85,7 @@ Schedule Compiler::run() {
                 newGlobals.push_back(i);
             }
         }
-        assert(newGlobals.size() == MyGlobalVars::bit);
+        assert(int(newGlobals.size()) == MyGlobalVars::bit);
         
         auto globalPos = [this, numLocalQubits](const std::vector<int>& layout, int x) {
             auto pos = std::find(layout.data() + numLocalQubits, layout.data() + numQubits, x);
@@ -187,7 +187,7 @@ LocalGroup SimpleCompiler::run() {
             gg.addGate(g, localQubits, enableGlobal);
         lg.relatedQubits = gg.relatedQubits;
         lg.fullGroups.push_back(gg.copyGates());
-        return std::move(lg);
+        return lg;
     }
     lg.relatedQubits = 0;
     remain.clear();
@@ -219,7 +219,7 @@ LocalGroup SimpleCompiler::run() {
         cnt ++;
         assert(cnt < 1000);
     }
-    return std::move(lg);
+    return lg;
 }
 
 LocalGroup AdvanceCompiler::run(State& state, bool usePerGate, bool useBLAS, int perGateSize, int blasSize, int cuttSize) {
@@ -320,7 +320,7 @@ LocalGroup AdvanceCompiler::run(State& state, bool usePerGate, bool useBLAS, int
         assert(cnt < 1000);
     }
     //Logger::add("local group cnt : %d", cnt);
-    return std::move(lg);
+    return lg;
 }
 
 template<int MAX_GATES>
@@ -497,7 +497,7 @@ LocalGroup ChunkCompiler::run() {
     cur.relatedQubits = newRelated;
     lg.relatedQubits |= cur.relatedQubits;
     lg.fullGroups.push_back(std::move(cur));
-    return std::move(lg);
+    return lg;
 }
 
 template<int MAX_GATES>

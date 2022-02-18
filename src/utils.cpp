@@ -53,7 +53,7 @@ value_t zero_wrapper(value_t x) {
 
 bool isUnitary(std::unique_ptr<cpx[]>& mat, int n) {
     cpx result[n * n];
-    memset(result, 0, sizeof(result));
+    // memset(result, 0, sizeof(result));
     for (int k = 0; k < n; k++)
         #pragma omp parallel for
         for (int i = 0; i < n; i++)

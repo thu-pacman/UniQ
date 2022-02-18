@@ -195,7 +195,7 @@ void Circuit::compile() {
         int bufferSize = (int) s.size();
         checkMPIErrors(MPI_Bcast(&bufferSize, 1, MPI_INT, 0, MPI_COMM_WORLD));
         checkMPIErrors(MPI_Bcast(s.data(), bufferSize, MPI_UNSIGNED_CHAR, 0, MPI_COMM_WORLD));
-        int cur = 0;
+        // int cur = 0;
         // schedule = Schedule::deserialize(s.data(), cur);
     } else {
         int bufferSize;

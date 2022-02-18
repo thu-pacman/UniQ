@@ -849,7 +849,6 @@ void Executor::dm_transpose() {
     allBarrier();
     auto start = std::chrono::system_clock::now();
     idx_t partSize = idx_t(1) << (numQubits - 2 * MyGlobalVars::bit);
-    int numLocalQubits = numQubits - MyGlobalVars::bit;
     checkNCCLErrors(ncclGroupStart());
     for (int xr = 0; xr < MyGlobalVars::numGPUs; xr++) {
         for (int a = 0; a < MyGlobalVars::localGPUs; a++) {

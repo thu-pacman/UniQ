@@ -35,7 +35,7 @@ GateGroup GateGroup::merge(const GateGroup& a, const GateGroup& b) {
             ret.gates.push_back(g);
         }
     }
-    return std::move(ret);
+    return ret;
 }
 
  idx_t GateGroup::newRelated(idx_t relatedQubits, const Gate& gate, idx_t localQubits, bool enableGlobal) {
@@ -64,7 +64,7 @@ GateGroup GateGroup::copyGates() {
     ret.gates = this->gates;
     ret.relatedQubits = this->relatedQubits;
     ret.backend = this->backend;
-    return std::move(ret);
+    return ret;
 }
 
 void Schedule::dump(int numQubits) {
@@ -325,7 +325,7 @@ Schedule Schedule::deserialize(const unsigned char* arr, int& cur) {
     for (decltype(num_lg) i = 0; i < num_lg; i++) {
         s.localGroups.push_back(LocalGroup::deserialize(arr, cur));
     }
-    return std::move(s);
+    return s;
 }
 
 std::vector<int> gen_perm_vector(int len) {
@@ -427,7 +427,7 @@ State LocalGroup::initState(const State& oldState, int numQubits, const std::vec
     for (int i = 0; i < MyGlobalVars::bit; i++)
         if (!(overlapGlobals >> i & 1))
             newBuffer.push_back(newGlobals[i]);
-    assert(newBuffer.size() == MyGlobalVars::bit);
+    assert(int(newBuffer.size()) == MyGlobalVars::bit);
     for (int i = 0, c = numLocalQubits - MyGlobalVars::bit; i < MyGlobalVars::bit; i++, c++) {
         if (layout[c] == newBuffer[i])
             continue;
@@ -489,7 +489,7 @@ State LocalGroup::initStateInplace(const State& oldState, int numQubits, const s
     for (int i = 0; i < MyGlobalVars::bit; i++) {
         oldGlobals.push_back(layout[i + numLocalQubits]);
     }
-    assert(oldGlobals.size() == MyGlobalVars::bit);
+    assert(int(oldGlobals.size()) == MyGlobalVars::bit);
     std::vector<int> newPos;
     for (size_t i = 0; i < oldGlobals.size(); i++) {
         if (oldGlobals[i] != newGlobals[i])

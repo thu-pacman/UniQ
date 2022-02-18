@@ -8,8 +8,8 @@
 #include "dbg.h"
 using namespace std;
 
-extern __shared__ cuCpx shm[1<<LOCAL_QUBIT_SIZE];
-extern __shared__ idx_t blockBias;
+static __shared__ cuCpx shm[1<<LOCAL_QUBIT_SIZE];
+static __shared__ idx_t blockBias;
 
 __device__ __constant__ value_t recRoot2 = 0.70710678118654752440084436210485; // more elegant way?
 __constant__ KernelGate deviceGates[MAX_GATE];
@@ -243,7 +243,6 @@ __device__ void doCompute(int numGates, int* loArr, int* shiftAt) {
         }
         if (!controlIsGlobal) {
             if (!targetIsGlobal) {
-                int m = 1 << (LOCAL_QUBIT_SIZE - 2);
                 int lo = loArr[(controlQubit * 10 + targetQubit) << THREAD_DEP | threadIdx.x];
                 int hi = lo ^ (1 << targetQubit) ^ (((1 << targetQubit) >> 3) & 7);
                 int add = 512;
@@ -459,7 +458,6 @@ void initControlIdx() {
         for (int i = 0; i < 128; i++)
             loIdx_host[q][q][i] = ((i >> q) << (q + 1)) | (i & ((1 << q) - 1));
 
-    int delta[10][10];
     for (int c = 0; c < 10; c++) {
         for (int t = 0; t < 10; t++) {
             if (c == t) continue;

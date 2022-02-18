@@ -231,7 +231,7 @@ std::unique_ptr<Circuit> parse_circuit(const std::string &filename) {
         printf("fail to load circuit\n");
         exit(1);
     }
-    return std::move(c);
+    return c;
 }
 
 int main(int argc, char* argv[]) {
