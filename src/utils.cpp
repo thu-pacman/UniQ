@@ -5,6 +5,8 @@
 
 #ifdef USE_GPU
 #include "cuda/entry.h"
+#elif  USE_CPU
+#include "cpu/entry.h"
 #endif
 
 namespace MyGlobalVars {
@@ -24,6 +26,9 @@ void init() {
     #endif
     Logger::add("Local GPU: %d", localGPUs);
     bit = get_bit(numGPUs);
+#endif
+#if USE_CPU
+    CpuImpl::initCpu();
 #endif
 }
 };

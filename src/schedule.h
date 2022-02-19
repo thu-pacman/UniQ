@@ -16,7 +16,7 @@ std::string to_string(Backend b);
 typedef cuttHandle transHandle;
 #elif USE_CPU
 #include <hptt.h>
-typedef hptt::Transpose<cpx> transHandle;
+typedef std::shared_ptr<hptt::Transpose<cpx>> transHandle;
 #else
 QAQ // compile error
 #endif

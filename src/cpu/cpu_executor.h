@@ -9,7 +9,7 @@ public:
     void dm_transpose();
 
 protected:
-    void transpose(std::vector<hptt::Transpose<cpx>> plans);
+    void transpose(std::vector<std::shared_ptr<hptt::Transpose<cpx>>> plans);
     void inplaceAll2All(int commSize, std::vector<int> comm, const State& newState);
     void all2all(int commSize, std::vector<int> comm);
     void launchPerGateGroup(std::vector<Gate>& gates, KernelGate hostGates[], const State& state, idx_t relatedQubits, int numLocalQubits);

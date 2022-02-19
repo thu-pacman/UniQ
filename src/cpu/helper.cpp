@@ -1,7 +1,21 @@
 #include "cpu/entry.h"
 #include <cstring>
+#include <memory>
+#include "hptt.h"
+
+namespace MyGlobalVars {
+    int n_thread;
+}
 
 namespace CpuImpl {
+
+void initCpu() {
+    #pragma omp parallel
+    {
+        #pragma omp master
+        MyGlobalVars::n_thread = omp_get_num_threads();
+    }
+}
 
 void initState(std::vector<cpx*> &deviceStateVec, int numQubits) {
     size_t size = (sizeof(cpx) << numQubits) >> MyGlobalVars::bit;
@@ -11,38 +25,37 @@ void initState(std::vector<cpx*> &deviceStateVec, int numQubits) {
 #if INPLACE
     size += sizeof(cpx) * (1 << MAX_SLICE);
 #endif
-#if GPU_BACKEND == 2
-    deviceStateVec.resize(1);
-    deviceStateVec[0] = (cpx*) malloc(sizeof(cpx) << numQubits);
-    memset(deviceStateVec[0], 0, sizeof(cpx) << numQubits);
-#else
     deviceStateVec.resize(MyGlobalVars::localGPUs);
     for (int g = 0; g < MyGlobalVars::localGPUs; g++) {
         deviceStateVec[g] = (cpx*) malloc(size);
         memset(deviceStateVec[g], 0, size);
     }
-#endif
     cpx one(1.0);
     if  (!USE_MPI || MyMPI::rank == 0) {
         deviceStateVec[0][0] = cpx(1.0);
     }
 }
 
-void initHpttPlans(std::vector<hptt::Transpose<cpx>*>& transPlanPointers, const std::vector<int*>& transPermPointers, const std::vector<int>& locals, int numLocalQubits) {
+void initHpttPlans(std::vector<std::shared_ptr<hptt::Transpose<cpx>>*>& transPlanPointers, const std::vector<int*>& transPermPointers, const std::vector<int>& locals, int numLocalQubits) {
     if (transPlanPointers.size() == 0) return;
-    UNIMPLEMENTED();
+    int total = transPlanPointers.size();
+    std::vector<int> dims(numLocalQubits, 2);
+    for (int i = 0; i < total; i++) {
+        *transPlanPointers[i] = hptt::create_plan(
+            transPermPointers[i], numLocalQubits,
+            cpx(1.0), nullptr, dims.data(), nullptr,
+            cpx(0.0), nullptr, nullptr,
+            hptt::ESTIMATE, MyGlobalVars::n_thread
+        );
+    }
 }
 
 void copyBackState(std::vector<cpx>& result, const std::vector<cpx*>& deviceStateVec, int numQubits) {
     result.resize(1ll << numQubits); // very slow ...
-#if GPU_BACKEND == 0 || GPU_BACKEND == 2
-    memcpy(result.data(), deviceStateVec[0], sizeof(cpx) << numQubits);
-#else
     idx_t elements = 1ll << (numQubits - MyGlobalVars::bit);
     for (int g = 0; g < MyGlobalVars::localGPUs; g++) {
         memcpy(result.data() + elements * g, deviceStateVec[g], sizeof(cpx) << (numQubits - MyGlobalVars::bit));
     }
-#endif
 }
 
 void destroyState(std::vector<cpx*>& deviceStateVec) {

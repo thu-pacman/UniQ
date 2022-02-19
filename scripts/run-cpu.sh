@@ -1,3 +1,3 @@
 #!/bin/bash
-source ../scripts/init.sh -DHARDWARE=cpu -DSHOW_SUMMARY=on -DSHOW_SCHEDULE=on -DMICRO_BENCH=off -DUSE_DOUBLE=on -DDISABLE_ASSERT=off -DENABLE_OVERLAP=off -DMEASURE_STAGE=off -DEVALUATOR_PREPROCESS=off -DUSE_MPI=off
-./main ../tests/input/supremacy_28.qasm
+source ../scripts/init.sh -DHARDWARE=cpu -DGPU_BACKEND=group-serial -DSHOW_SUMMARY=on -DSHOW_SCHEDULE=on -DMICRO_BENCH=off -DUSE_DOUBLE=on -DDISABLE_ASSERT=off -DENABLE_OVERLAP=off -DMEASURE_STAGE=off -DEVALUATOR_PREPROCESS=off -DUSE_MPI=on
+srun -n 32 --ntasks-per-node=32 bash -c 'OMP_NUM_THREADS=1 ../scripts/env.sh ./main ../tests/input/basis_change_25.qasm'

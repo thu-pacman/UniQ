@@ -773,7 +773,7 @@ void GateGroup::initMatrix(int numLocalQubit) {
 }
 
 
-#if GPU_BACKEND == 1 || GPU_BACKEND == 3 || GPU_BACKEND == 4 || GPU_BACKEND == 5
+#if GPU_BACKEND == 1 || GPU_BACKEND == 2 || GPU_BACKEND == 3 || GPU_BACKEND == 4 || GPU_BACKEND == 5
 void Schedule::initMatrix(int numQubits) {
     for (auto& lg: localGroups) {
         for (auto& gg: lg.overlapGroups) {

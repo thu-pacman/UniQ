@@ -405,7 +405,13 @@ std::map<int, int> Executor::getLogicShareMap(idx_t relatedQubits, int numLocalQ
     int shareCnt = 0;
     int localCnt = 0;
     int globalCnt = 0;
-    std::map<int, int> toID; 
+    std::map<int, int> toID;
+#if GPU_BACKEND==2
+    for (int i = 0; i < numLocalQubits; i++)
+        toID[state.layout[i]] = localCnt++;
+    for (int i = numLocalQubits; i < numQubits; i++)
+        toID[state.layout[i]] = globalCnt++;
+#else
     for (int i = 0; i < numLocalQubits; i++) {
         if (relatedQubits & (idx_t(1) << i)) {
             toID[state.layout[i]] = shareCnt++;
@@ -415,6 +421,7 @@ std::map<int, int> Executor::getLogicShareMap(idx_t relatedQubits, int numLocalQ
     }
     for (int i = numLocalQubits; i < numQubits; i++)
         toID[state.layout[i]] = globalCnt++;
+#endif
     return toID;
 }
 

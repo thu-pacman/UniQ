@@ -141,7 +141,8 @@ Schedule Compiler::run() {
         AdvanceCompiler overlapCompiler(numQubits, overlapLocals, overlapBlasForbid, moveBack[id].first);
         AdvanceCompiler fullCompiler(numQubits, gg.relatedQubits, 0, gg.gates);
         switch (GPU_BACKEND) {
-            case 1: {
+            case 1: // no break;
+            case 2: {
                 lg.overlapGroups = overlapCompiler.run(state, true, false, LOCAL_QUBIT_SIZE, BLAS_MAT_LIMIT, numLocalQubits - MyGlobalVars::bit).fullGroups;
                 lg.fullGroups = fullCompiler.run(state, true, false, LOCAL_QUBIT_SIZE, BLAS_MAT_LIMIT, numLocalQubits).fullGroups;
                 break;
@@ -152,7 +153,6 @@ Schedule Compiler::run() {
                 lg.fullGroups = fullCompiler.run(state, false, true, LOCAL_QUBIT_SIZE, BLAS_MAT_LIMIT, numLocalQubits).fullGroups;
                 break;
             }
-            case 2: // no break;
             case 4: {
                 lg.overlapGroups = overlapCompiler.run(state, true, true, LOCAL_QUBIT_SIZE, BLAS_MAT_LIMIT, numLocalQubits - MyGlobalVars::bit).fullGroups;
                 lg.fullGroups = fullCompiler.run(state, true, true, LOCAL_QUBIT_SIZE, BLAS_MAT_LIMIT, numLocalQubits).fullGroups;
