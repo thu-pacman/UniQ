@@ -17,7 +17,7 @@ protected:
     virtual void transpose(std::vector<transHandle> plans) = 0;
     virtual void inplaceAll2All(int commSize, std::vector<int> comm, const State& newState) = 0;
     virtual void all2all(int commSize, std::vector<int> comm) = 0;
-    virtual void launchPerGateGroup(std::vector<Gate>& gates, KernelGate hostGates[], idx_t relatedQubits, int numLocalQubits) = 0;
+    virtual void launchPerGateGroup(std::vector<Gate>& gates, KernelGate hostGates[], const State& state, idx_t relatedQubits, int numLocalQubits) = 0;
     virtual void launchPerGateGroupSliced(std::vector<Gate>& gates, KernelGate hostGates[], idx_t relatedQubits, int numLocalQubits, int sliceID) = 0;
     virtual void launchBlasGroup(GateGroup& gg, int numLocalQubits) = 0;
     virtual void launchBlasGroupSliced(GateGroup& gg, int numLocalQubits, int sliceID) = 0;

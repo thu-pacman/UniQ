@@ -13,7 +13,7 @@ protected:
     void transpose(std::vector<cuttHandle> plans);
     void inplaceAll2All(int commSize, std::vector<int> comm, const State& newState);
     void all2all(int commSize, std::vector<int> comm);
-    void launchPerGateGroup(std::vector<Gate>& gates, KernelGate hostGates[], idx_t relatedQubits, int numLocalQubits);
+    void launchPerGateGroup(std::vector<Gate>& gates, KernelGate hostGates[], const State& state, idx_t relatedQubits, int numLocalQubits);
     void launchPerGateGroupSliced(std::vector<Gate>& gates, KernelGate hostGates[], idx_t relatedQubits, int numLocalQubits, int sliceID);
     void launchBlasGroup(GateGroup& gg, int numLocalQubits);
     void launchBlasGroupSliced(GateGroup& gg, int numLocalQubits, int sliceID);

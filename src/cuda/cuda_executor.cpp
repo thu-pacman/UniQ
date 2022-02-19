@@ -282,7 +282,7 @@ void CudaExecutor::all2all(int commSize, std::vector<int> comm) {
 #endif
 }
 
-void CudaExecutor::launchPerGateGroup(std::vector<Gate>& gates, KernelGate hostGates[], idx_t relatedQubits, int numLocalQubits) {
+void CudaExecutor::launchPerGateGroup(std::vector<Gate>& gates, KernelGate hostGates[], const State& state, idx_t relatedQubits, int numLocalQubits) {
     unsigned int blockHot, enumerate;
     prepareBitMap(relatedQubits, blockHot, enumerate, numLocalQubits);
     idx_t gridDim = (idx_t(1) << numLocalQubits) >> LOCAL_QUBIT_SIZE;

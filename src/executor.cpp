@@ -330,7 +330,7 @@ void Executor::applyPerGateGroup(GateGroup& gg) {
            hostGates[g * gates.size() + i] = getGate(gates[i], globalGPUID, numLocalQubits, relatedLogicQb, toID);
         }
     }
-    launchPerGateGroup(gates, hostGates, relatedQubits, numLocalQubits);
+    launchPerGateGroup(gates, hostGates, state, relatedQubits, numLocalQubits);
 }
 
 void Executor::applyPerGateGroupSliced(GateGroup& gg, int sliceID) {
