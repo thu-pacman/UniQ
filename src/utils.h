@@ -48,7 +48,7 @@ typedef std::complex<float> cpx;
     exit(1); \
 }
 
-const int LOCAL_QUBIT_SIZE = 10; // is hardcoded
+const int LOCAL_QUBIT_SIZE = LOCAL_QUBIT_SIZE_DEFINED; // is hardcoded
 const int BLAS_MAT_LIMIT = BLAS_MAT_LIMIT_DEFINED;
 const int COALESCE_GLOBAL = COALESCE_GLOBAL_DEFINED;
 const int MAX_GATE = 600;

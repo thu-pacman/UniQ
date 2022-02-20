@@ -39,6 +39,10 @@ set(MIN_MAT "4" CACHE STRING "min mat size")
 MESSAGE(STATUS "min mat size = ${MIN_MAT}")
 add_definitions(-DMIN_MAT_SIZE_DEFINED=${MIN_MAT})
 
+set(LOCAL_QUBIT_SIZE "10" CACHE STRING "local qubit size")
+MESSAGE(STATUS "local qubit size = ${LOCAL_QUBIT_SIZE}")
+add_definitions(-DLOCAL_QUBIT_SIZE_DEFINED=${LOCAL_QUBIT_SIZE})
+
 set(GPU_BACKEND "group" CACHE STRING "Backend mode, one of [serial, group, group-serial, blas, mix, blas-advance]")
 
 if (GPU_BACKEND STREQUAL "serial")

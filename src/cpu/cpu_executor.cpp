@@ -1,6 +1,7 @@
 #include "cpu_executor.h"
 #include <omp.h>
 #include <cstring>
+#include <assert.h>
 
 namespace CpuImpl {
 
@@ -65,6 +66,126 @@ void CpuExecutor::all2all(int commSize, std::vector<int> comm) {
 #define FOLLOW_NEXT(TYPE) \
 case GateType::TYPE: // no break
 
+#if GPU_BACKEND==1
+
+inline void fetch_data(cpx* local, const cpx* deviceStateVec, int bias, idx_t relatedQubits) {
+    int x;
+    unsigned int y;
+    for (x = ((1 << LOCAL_QUBIT_SIZE) - 1), y = relatedQubits; x >= 0; x--, y = relatedQubits & (y-1)) {
+        local[x] = deviceStateVec[bias | y];
+    }
+}
+
+inline void save_data(cpx* deviceStateVec, const cpx* local, int bias, idx_t relatedQubits) {
+    int x;
+    unsigned int y;
+    for (x = ((1 << LOCAL_QUBIT_SIZE) - 1), y = relatedQubits; x >= 0; x--, y = relatedQubits & (y-1)) {
+        deviceStateVec[bias | y] = local[x];
+    }
+}
+
+inline void apply_gate_group(cpx* local, int numGates, int blockID, KernelGate hostGates[]) {
+    for (int i = 0; i < numGates; i++) {
+        auto& gate = hostGates[i];
+        int controlQubit = gate.controlQubit;
+        int targetQubit = gate.targetQubit;
+        char controlIsGlobal = gate.controlIsGlobal;
+        char targetIsGlobal = gate.targetIsGlobal;
+        if (!controlIsGlobal) {
+            if (!targetIsGlobal) {
+                int m = 1 << (LOCAL_QUBIT_SIZE - 2);
+                int smallQubit = controlQubit > targetQubit ? targetQubit : controlQubit;
+                int largeQubit = controlQubit > targetQubit ? controlQubit : targetQubit;
+                int maskSmall = (1 << smallQubit) - 1;
+                int maskLarge = (1 << largeQubit) - 1;
+                // TODO: switch (gate)
+                for (int j = 0; j < m; j++) {
+                    int lo = ((j >> smallQubit) << (smallQubit + 1)) | (j & maskSmall);
+                    lo = ((lo >> largeQubit) << (largeQubit + 1)) | (lo & maskLarge);
+                    lo |= 1 << controlQubit;
+                    int hi = lo | (1 << targetQubit);
+                    cpx lo_val = local[lo];
+                    cpx hi_val = local[hi];
+                    local[lo] = lo_val * cpx(gate.r00, gate.i00) + hi_val * cpx(gate.r01, gate.i01);
+                    local[hi] = lo_val * cpx(gate.r10, gate.i10) + hi_val * cpx(gate.r11, gate.i11);
+                }
+            } else {
+                assert(hostGates[i].type == GateType::CZ || hostGates[i].type == GateType::CU1 || hostGates[i].type == GateType::CRZ);
+                bool isHighBlock = (blockID >> targetQubit) & 1;
+                int m = 1 << (LOCAL_QUBIT_SIZE - 1);
+                int maskControl = (1 << controlQubit) - 1;
+                if (!isHighBlock){
+                    if (hostGates[i].type == GateType::CRZ) {
+                        for (int j = 0; j < m; j++) {
+                            int x = ((j >> controlQubit) << (controlQubit + 1)) | (j & maskControl)  | (1 << controlQubit);
+                            local[x] = local[x] * cpx(gate.r00, gate.i00);
+                        }
+                    }
+                } else {
+                    // TODO: switch (gate)
+                    for (int j = 0; j < m; j++) {
+                        int x = ((j >> controlQubit) << (controlQubit + 1)) | (j & maskControl)  | (1 << controlQubit);
+                        local[x] = local[x] * cpx(gate.r11, gate.i11);
+                    }
+                }
+            }
+        } else {
+            if (controlIsGlobal == 1 && !((blockID>> controlQubit) & 1)) {
+                continue;
+            }
+            if (!targetIsGlobal) {
+                int m = 1 << (LOCAL_QUBIT_SIZE - 1);
+                int maskTarget = (1 << targetQubit) - 1;
+                // TODO: switch (gate)
+                for (int j = 0; j < m; j++) {
+                    int lo = ((j >> targetQubit) << (targetQubit + 1)) | (j & maskTarget);
+                    int hi = lo | (1 << targetQubit);
+                    cpx lo_val = local[lo];
+                    cpx hi_val = local[hi];
+                    local[lo] = lo_val * cpx(gate.r00, gate.i00) + hi_val * cpx(gate.r01, gate.i01);
+                    local[hi] = lo_val * cpx(gate.r10, gate.i10) + hi_val * cpx(gate.r11, gate.i11);
+                }
+            } else {
+                bool isHighBlock = (blockID >> targetQubit) & 1;
+                // TODO: switch (gate)
+                int m = 1 << LOCAL_QUBIT_SIZE;
+                if (!isHighBlock){ \
+                    for (int j = 0; j < m; j++) {
+                        local[j] = local[j] * cpx(gate.r00, gate.i00);
+                    }
+                } else {
+                    for (int j = 0; j < m; j++) {
+                        local[j] = local[j] * cpx(gate.r11, gate.i11);
+                    }
+                }
+            }
+        }
+    }
+}
+
+void CpuExecutor::launchPerGateGroup(std::vector<Gate>& gates, KernelGate hostGates[], const State& state, idx_t relatedQubits, int numLocalQubits) {
+    cpx* sv = deviceStateVec[0];
+    #pragma omp parallel for
+    for (int blockID = 0; blockID < (1 << (numLocalQubits - LOCAL_QUBIT_SIZE)); blockID++) {
+        cpx local[1 << LOCAL_QUBIT_SIZE];
+        idx_t blockHot = (idx_t(1) << numLocalQubits) - 1 - relatedQubits;
+        unsigned int bias = 0;
+        {
+            int bid = blockID;
+            for (unsigned int bit = 1; bit < (1u << numLocalQubits); bit <<= 1) {
+                if (blockHot & bit) {
+                    if (bid & 1)
+                        bias |= bit;
+                    bid >>= 1;
+                }
+            }
+        }
+        fetch_data(local, sv, bias, relatedQubits);
+        apply_gate_group(local, gates.size(), blockID, hostGates);
+        save_data(sv, local, bias, relatedQubits);
+    }
+}
+#elif GPU_BACKEND==2
 void CpuExecutor::launchPerGateGroup(std::vector<Gate>& gates, KernelGate hostGates[], const State& state, idx_t relatedQubits, int numLocalQubits) {
     #pragma omp parallel
     for (int i = 0; i < int(gates.size()); i++) {
@@ -138,6 +259,11 @@ void CpuExecutor::launchPerGateGroup(std::vector<Gate>& gates, KernelGate hostGa
         }
     }
 }
+#else
+void CpuExecutor::launchPerGateGroup(std::vector<Gate>& gates, KernelGate hostGates[], const State& state, idx_t relatedQubits, int numLocalQubits) {
+    UNIMPLEMENTED()
+}
+#endif
 
 void CpuExecutor::deviceFinalize() {}
 
