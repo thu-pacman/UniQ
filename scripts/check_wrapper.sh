@@ -1,5 +1,6 @@
 #!/bin/bash
 set -x
+# if [ "$SLURM_LOCALID" == "0" ]; then
 source init.sh ${@: 2}
 input_dir=../tests/input
 std_dir=../tests/output
@@ -20,3 +21,4 @@ for test in ${tests[*]}; do
 done
 
 grep -Er "Logger.*Time" $1/*.log 
+# fi

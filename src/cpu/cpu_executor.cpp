@@ -94,15 +94,16 @@ inline void apply_gate_group(cpx* local, int numGates, int blockID, KernelGate h
         if (!controlIsGlobal) {
             if (!targetIsGlobal) {
                 int m = 1 << (LOCAL_QUBIT_SIZE - 2);
-                int smallQubit = controlQubit > targetQubit ? targetQubit : controlQubit;
-                int largeQubit = controlQubit > targetQubit ? controlQubit : targetQubit;
-                int maskSmall = (1 << smallQubit) - 1;
-                int maskLarge = (1 << largeQubit) - 1;
+                int low_bit = std::min(controlQubit, targetQubit);
+                int high_bit = std::max(controlQubit, targetQubit);
+                int mask_inner = (1 << (LOCAL_QUBIT_SIZE - 2)) - (1 << low_bit);
+                int mask_outer = (1 << (LOCAL_QUBIT_SIZE - 1)) - (1 << high_bit);
                 // TODO: switch (gate)
+                #pragma ivdep
                 for (int j = 0; j < m; j++) {
-                    int lo = ((j >> smallQubit) << (smallQubit + 1)) | (j & maskSmall);
-                    lo = ((lo >> largeQubit) << (largeQubit + 1)) | (lo & maskLarge);
-                    lo |= 1 << controlQubit;
+                    int lo = j + (j & mask_inner);
+                    lo = lo + (lo & mask_outer);
+                    lo += 1 << controlQubit;
                     int hi = lo | (1 << targetQubit);
                     cpx lo_val = local[lo];
                     cpx hi_val = local[hi];
@@ -113,18 +114,17 @@ inline void apply_gate_group(cpx* local, int numGates, int blockID, KernelGate h
                 assert(hostGates[i].type == GateType::CZ || hostGates[i].type == GateType::CU1 || hostGates[i].type == GateType::CRZ);
                 bool isHighBlock = (blockID >> targetQubit) & 1;
                 int m = 1 << (LOCAL_QUBIT_SIZE - 1);
-                int maskControl = (1 << controlQubit) - 1;
+                int mask_inner = (1 << (LOCAL_QUBIT_SIZE - 1)) - (1 << controlQubit);
                 if (!isHighBlock){
                     if (hostGates[i].type == GateType::CRZ) {
                         for (int j = 0; j < m; j++) {
-                            int x = ((j >> controlQubit) << (controlQubit + 1)) | (j & maskControl)  | (1 << controlQubit);
+                            int x = j + (j & mask_inner) + (1 << controlQubit);
                             local[x] = local[x] * cpx(gate.r00, gate.i00);
                         }
                     }
                 } else {
-                    // TODO: switch (gate)
                     for (int j = 0; j < m; j++) {
-                        int x = ((j >> controlQubit) << (controlQubit + 1)) | (j & maskControl)  | (1 << controlQubit);
+                        int x = j + (j & mask_inner) + (1 << controlQubit);
                         local[x] = local[x] * cpx(gate.r11, gate.i11);
                     }
                 }
@@ -135,10 +135,11 @@ inline void apply_gate_group(cpx* local, int numGates, int blockID, KernelGate h
             }
             if (!targetIsGlobal) {
                 int m = 1 << (LOCAL_QUBIT_SIZE - 1);
-                int maskTarget = (1 << targetQubit) - 1;
+                int mask_inner = (1 << (LOCAL_QUBIT_SIZE - 1)) - (1 << gate.targetQubit);
                 // TODO: switch (gate)
+                #pragma ivdep
                 for (int j = 0; j < m; j++) {
-                    int lo = ((j >> targetQubit) << (targetQubit + 1)) | (j & maskTarget);
+                    int lo = j + (j & mask_inner);
                     int hi = lo | (1 << targetQubit);
                     cpx lo_val = local[lo];
                     cpx hi_val = local[hi];
@@ -149,11 +150,13 @@ inline void apply_gate_group(cpx* local, int numGates, int blockID, KernelGate h
                 bool isHighBlock = (blockID >> targetQubit) & 1;
                 // TODO: switch (gate)
                 int m = 1 << LOCAL_QUBIT_SIZE;
-                if (!isHighBlock){ \
+                if (!isHighBlock){
+                    #pragma ivdep
                     for (int j = 0; j < m; j++) {
                         local[j] = local[j] * cpx(gate.r00, gate.i00);
                     }
                 } else {
+                    #pragma ivdep
                     for (int j = 0; j < m; j++) {
                         local[j] = local[j] * cpx(gate.r11, gate.i11);
                     }
