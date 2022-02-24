@@ -2,6 +2,7 @@
 #include <omp.h>
 #include <cstring>
 #include <assert.h>
+#include <x86intrin.h>
 
 namespace CpuImpl {
 
@@ -96,9 +97,51 @@ inline void apply_gate_group(cpx* local, int numGates, int blockID, KernelGate h
                 int m = 1 << (LOCAL_QUBIT_SIZE - 2);
                 int low_bit = std::min(controlQubit, targetQubit);
                 int high_bit = std::max(controlQubit, targetQubit);
+                // TODO: switch (gate)
+                #ifdef USE_AVX512
+                __m256i mask_inner = _mm256_set1_epi32((1 << (LOCAL_QUBIT_SIZE - 2)) - (1 << low_bit));
+                __m256i mask_outer = _mm256_set1_epi32((1 << (LOCAL_QUBIT_SIZE - 1)) - (1 << high_bit));
+                __m256i ctr_flag = _mm256_set1_epi32(1 << controlQubit);
+                __m256i tar_flag = _mm256_set1_epi32(1 << targetQubit);
+                assert(m % 8 == 0);
+                __m256i idx = _mm256_set_epi32(0, 1, 2, 3, 4, 5, 6, 7);
+                const __m256i inc = _mm256_set1_epi32(8);
+                for (int j = 0; j < m; j += 8) {
+                    __m256i lo = _mm256_add_epi32(idx, _mm256_and_si256(idx, mask_inner));
+                    lo = _mm256_add_epi32(lo, _mm256_and_si256(lo, mask_outer));
+                    lo = _mm256_add_epi32(lo, ctr_flag);
+                    __m256i hi = _mm256_add_epi32(lo, tar_flag);
+                    lo = _mm256_add_epi32(lo, lo);
+                    hi = _mm256_add_epi32(hi, hi);
+                    __m512d lo_real = _mm512_i32gather_pd(lo, local, 8);
+                    __m512d lo_imag = _mm512_i32gather_pd(lo, reinterpret_cast<value_t*>(local) + 1, 8);
+                    __m512d hi_real = _mm512_i32gather_pd(hi, local, 8);
+                    __m512d hi_imag = _mm512_i32gather_pd(hi, reinterpret_cast<value_t*>(local) + 1, 8);
+                    __m512d r00 = _mm512_set1_pd(gate.r00);
+                    __m512d i00 = _mm512_set1_pd(gate.i00);
+                    __m512d r01 = _mm512_set1_pd(gate.r01);
+                    __m512d i01 = _mm512_set1_pd(gate.i01);
+                    __m512d lo_real_new = _mm512_fnmadd_pd(lo_imag, i00, _mm512_mul_pd(lo_real, r00));
+                    lo_real_new = _mm512_fnmadd_pd(hi_imag, i01, _mm512_fmadd_pd(hi_real, r01, lo_real_new));
+                    __m512d lo_imag_new = _mm512_fmadd_pd(lo_imag, r00, _mm512_mul_pd(lo_real, i00));
+                    lo_imag_new = _mm512_fmadd_pd(hi_imag, r01, _mm512_fmadd_pd(hi_real, i01, lo_imag_new));
+                    _mm512_i32scatter_pd(local, lo, lo_real_new, 8);
+                    _mm512_i32scatter_pd(reinterpret_cast<value_t*>(local) + 1, lo, lo_imag_new, 8);
+                    __m512d r10 = _mm512_set1_pd(gate.r10);
+                    __m512d i10 = _mm512_set1_pd(gate.i10);
+                    __m512d hi_real_new = _mm512_fnmadd_pd(lo_imag, i10, _mm512_mul_pd(lo_real, r10));
+                    __m512d r11 = _mm512_set1_pd(gate.r11);
+                    __m512d i11 = _mm512_set1_pd(gate.i11);
+                    hi_real_new = _mm512_fnmadd_pd(hi_imag, i11, _mm512_fmadd_pd(hi_real, r11, hi_real_new));
+                    __m512d hi_imag_new = _mm512_fmadd_pd(lo_imag, r10, _mm512_mul_pd(lo_real, i10));
+                    hi_imag_new = _mm512_fmadd_pd(hi_imag, r11, _mm512_fmadd_pd(hi_real, i11, hi_imag_new));
+                    _mm512_i32scatter_pd(local, hi, hi_real_new, 8);
+                    _mm512_i32scatter_pd(reinterpret_cast<value_t*>(local) + 1, hi, hi_imag_new, 8);
+                    idx = _mm256_add_epi32(idx, inc);
+                }
+                #else
                 int mask_inner = (1 << (LOCAL_QUBIT_SIZE - 2)) - (1 << low_bit);
                 int mask_outer = (1 << (LOCAL_QUBIT_SIZE - 1)) - (1 << high_bit);
-                // TODO: switch (gate)
                 #pragma ivdep
                 for (int j = 0; j < m; j++) {
                     int lo = j + (j & mask_inner);
@@ -110,6 +153,7 @@ inline void apply_gate_group(cpx* local, int numGates, int blockID, KernelGate h
                     local[lo] = lo_val * cpx(gate.r00, gate.i00) + hi_val * cpx(gate.r01, gate.i01);
                     local[hi] = lo_val * cpx(gate.r10, gate.i10) + hi_val * cpx(gate.r11, gate.i11);
                 }
+                #endif
             } else {
                 assert(hostGates[i].type == GateType::CZ || hostGates[i].type == GateType::CU1 || hostGates[i].type == GateType::CRZ);
                 bool isHighBlock = (blockID >> targetQubit) & 1;
@@ -135,8 +179,45 @@ inline void apply_gate_group(cpx* local, int numGates, int blockID, KernelGate h
             }
             if (!targetIsGlobal) {
                 int m = 1 << (LOCAL_QUBIT_SIZE - 1);
-                int mask_inner = (1 << (LOCAL_QUBIT_SIZE - 1)) - (1 << gate.targetQubit);
+                #ifdef USE_AVX512
+                __m256i mask_inner = _mm256_set1_epi32((1 << (LOCAL_QUBIT_SIZE - 1)) - (1 << gate.targetQubit));
+                __m256i tar_flag = _mm256_set1_epi32(1 << targetQubit);
+                __m256i idx = _mm256_set_epi32(0, 1, 2, 3, 4, 5, 6, 7);
+                const __m256i inc = _mm256_set1_epi32(8);
+                for (int j = 0; j < m; j += 8) {
+                    __m256i lo = _mm256_add_epi32(idx, _mm256_and_si256(idx, mask_inner));
+                    __m256i hi = _mm256_add_epi32(lo, tar_flag);
+                    lo = _mm256_add_epi32(lo, lo);
+                    hi = _mm256_add_epi32(hi, hi);
+                    __m512d lo_real = _mm512_i32gather_pd(lo, local, 8);
+                    __m512d lo_imag = _mm512_i32gather_pd(lo, reinterpret_cast<value_t*>(local) + 1, 8);
+                    __m512d hi_real = _mm512_i32gather_pd(hi, local, 8);
+                    __m512d hi_imag = _mm512_i32gather_pd(hi, reinterpret_cast<value_t*>(local) + 1, 8);
+                    __m512d r00 = _mm512_set1_pd(gate.r00);
+                    __m512d i00 = _mm512_set1_pd(gate.i00);
+                    __m512d r01 = _mm512_set1_pd(gate.r01);
+                    __m512d i01 = _mm512_set1_pd(gate.i01);
+                    __m512d lo_real_new = _mm512_fnmadd_pd(lo_imag, i00, _mm512_mul_pd(lo_real, r00));
+                    lo_real_new = _mm512_fnmadd_pd(hi_imag, i01, _mm512_fmadd_pd(hi_real, r01, lo_real_new));
+                    __m512d lo_imag_new = _mm512_fmadd_pd(lo_imag, r00, _mm512_mul_pd(lo_real, i00));
+                    lo_imag_new = _mm512_fmadd_pd(hi_imag, r01, _mm512_fmadd_pd(hi_real, i01, lo_imag_new));
+                    _mm512_i32scatter_pd(local, lo, lo_real_new, 8);
+                    _mm512_i32scatter_pd(reinterpret_cast<value_t*>(local) + 1, lo, lo_imag_new, 8);
+                    __m512d r10 = _mm512_set1_pd(gate.r10);
+                    __m512d i10 = _mm512_set1_pd(gate.i10);
+                    __m512d hi_real_new = _mm512_fnmadd_pd(lo_imag, i10, _mm512_mul_pd(lo_real, r10));
+                    __m512d r11 = _mm512_set1_pd(gate.r11);
+                    __m512d i11 = _mm512_set1_pd(gate.i11);
+                    hi_real_new = _mm512_fnmadd_pd(hi_imag, i11, _mm512_fmadd_pd(hi_real, r11, hi_real_new));
+                    __m512d hi_imag_new = _mm512_fmadd_pd(lo_imag, r10, _mm512_mul_pd(lo_real, i10));
+                    hi_imag_new = _mm512_fmadd_pd(hi_imag, r11, _mm512_fmadd_pd(hi_real, i11, hi_imag_new));
+                    _mm512_i32scatter_pd(local, hi, hi_real_new, 8);
+                    _mm512_i32scatter_pd(reinterpret_cast<value_t*>(local) + 1, hi, hi_imag_new, 8);
+                    idx = _mm256_add_epi32(idx, inc);
+                }
+                #else
                 // TODO: switch (gate)
+                int mask_inner = (1 << (LOCAL_QUBIT_SIZE - 1)) - (1 << gate.targetQubit);
                 #pragma ivdep
                 for (int j = 0; j < m; j++) {
                     int lo = j + (j & mask_inner);
@@ -146,6 +227,7 @@ inline void apply_gate_group(cpx* local, int numGates, int blockID, KernelGate h
                     local[lo] = lo_val * cpx(gate.r00, gate.i00) + hi_val * cpx(gate.r01, gate.i01);
                     local[hi] = lo_val * cpx(gate.r10, gate.i10) + hi_val * cpx(gate.r11, gate.i11);
                 }
+                #endif
             } else {
                 bool isHighBlock = (blockID >> targetQubit) & 1;
                 // TODO: switch (gate)
