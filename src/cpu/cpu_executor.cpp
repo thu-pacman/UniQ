@@ -69,23 +69,25 @@ case GateType::TYPE: // no break
 
 #if GPU_BACKEND==1
 
-inline void fetch_data(cpx* local, const cpx* deviceStateVec, int bias, idx_t relatedQubits) {
+inline void fetch_data(value_t* local_real, value_t* local_imag, const cpx* deviceStateVec, int bias, idx_t relatedQubits) {
     int x;
     unsigned int y;
     for (x = ((1 << LOCAL_QUBIT_SIZE) - 1), y = relatedQubits; x >= 0; x--, y = relatedQubits & (y-1)) {
-        local[x] = deviceStateVec[bias | y];
+        local_real[x] = deviceStateVec[bias | y].real();
+        local_imag[x] = deviceStateVec[bias | y].imag();
     }
 }
 
-inline void save_data(cpx* deviceStateVec, const cpx* local, int bias, idx_t relatedQubits) {
+inline void save_data(cpx* deviceStateVec, const value_t* local_real, const value_t* local_imag, int bias, idx_t relatedQubits) {
     int x;
     unsigned int y;
     for (x = ((1 << LOCAL_QUBIT_SIZE) - 1), y = relatedQubits; x >= 0; x--, y = relatedQubits & (y-1)) {
-        deviceStateVec[bias | y] = local[x];
+        deviceStateVec[bias | y].real(local_real[x]);
+        deviceStateVec[bias | y].imag(local_imag[x]);
     }
 }
 
-inline void apply_gate_group(cpx* local, int numGates, int blockID, KernelGate hostGates[]) {
+inline void apply_gate_group(value_t* local_real, value_t* local_imag, int numGates, int blockID, KernelGate hostGates[]) {
     for (int i = 0; i < numGates; i++) {
         auto& gate = hostGates[i];
         int controlQubit = gate.controlQubit;
@@ -111,12 +113,12 @@ inline void apply_gate_group(cpx* local, int numGates, int blockID, KernelGate h
                     lo = _mm256_add_epi32(lo, _mm256_and_si256(lo, mask_outer));
                     lo = _mm256_add_epi32(lo, ctr_flag);
                     __m256i hi = _mm256_add_epi32(lo, tar_flag);
-                    lo = _mm256_add_epi32(lo, lo);
-                    hi = _mm256_add_epi32(hi, hi);
-                    __m512d lo_real = _mm512_i32gather_pd(lo, local, 8);
-                    __m512d lo_imag = _mm512_i32gather_pd(lo, reinterpret_cast<value_t*>(local) + 1, 8);
-                    __m512d hi_real = _mm512_i32gather_pd(hi, local, 8);
-                    __m512d hi_imag = _mm512_i32gather_pd(hi, reinterpret_cast<value_t*>(local) + 1, 8);
+                    // lo = _mm256_add_epi32(lo, lo);
+                    // hi = _mm256_add_epi32(hi, hi);
+                    __m512d lo_real = _mm512_i32gather_pd(lo, local_real, 8);
+                    __m512d lo_imag = _mm512_i32gather_pd(lo, local_imag, 8);
+                    __m512d hi_real = _mm512_i32gather_pd(hi, local_real, 8);
+                    __m512d hi_imag = _mm512_i32gather_pd(hi, local_imag, 8);
                     __m512d r00 = _mm512_set1_pd(gate.r00);
                     __m512d i00 = _mm512_set1_pd(gate.i00);
                     __m512d r01 = _mm512_set1_pd(gate.r01);
@@ -125,8 +127,8 @@ inline void apply_gate_group(cpx* local, int numGates, int blockID, KernelGate h
                     lo_real_new = _mm512_fnmadd_pd(hi_imag, i01, _mm512_fmadd_pd(hi_real, r01, lo_real_new));
                     __m512d lo_imag_new = _mm512_fmadd_pd(lo_imag, r00, _mm512_mul_pd(lo_real, i00));
                     lo_imag_new = _mm512_fmadd_pd(hi_imag, r01, _mm512_fmadd_pd(hi_real, i01, lo_imag_new));
-                    _mm512_i32scatter_pd(local, lo, lo_real_new, 8);
-                    _mm512_i32scatter_pd(reinterpret_cast<value_t*>(local) + 1, lo, lo_imag_new, 8);
+                    _mm512_i32scatter_pd(local_real, lo, lo_real_new, 8);
+                    _mm512_i32scatter_pd(local_imag, lo, lo_imag_new, 8);
                     __m512d r10 = _mm512_set1_pd(gate.r10);
                     __m512d i10 = _mm512_set1_pd(gate.i10);
                     __m512d hi_real_new = _mm512_fnmadd_pd(lo_imag, i10, _mm512_mul_pd(lo_real, r10));
@@ -135,8 +137,8 @@ inline void apply_gate_group(cpx* local, int numGates, int blockID, KernelGate h
                     hi_real_new = _mm512_fnmadd_pd(hi_imag, i11, _mm512_fmadd_pd(hi_real, r11, hi_real_new));
                     __m512d hi_imag_new = _mm512_fmadd_pd(lo_imag, r10, _mm512_mul_pd(lo_real, i10));
                     hi_imag_new = _mm512_fmadd_pd(hi_imag, r11, _mm512_fmadd_pd(hi_real, i11, hi_imag_new));
-                    _mm512_i32scatter_pd(local, hi, hi_real_new, 8);
-                    _mm512_i32scatter_pd(reinterpret_cast<value_t*>(local) + 1, hi, hi_imag_new, 8);
+                    _mm512_i32scatter_pd(local_real, hi, hi_real_new, 8);
+                    _mm512_i32scatter_pd(local_imag, hi, hi_imag_new, 8);
                     idx = _mm256_add_epi32(idx, inc);
                 }
                 #else
@@ -163,13 +165,17 @@ inline void apply_gate_group(cpx* local, int numGates, int blockID, KernelGate h
                     if (hostGates[i].type == GateType::CRZ) {
                         for (int j = 0; j < m; j++) {
                             int x = j + (j & mask_inner) + (1 << controlQubit);
-                            local[x] = local[x] * cpx(gate.r00, gate.i00);
+                            cpx new_val = cpx(local_real[x], local_imag[x]) * cpx(gate.r00, gate.i00);
+                            local_real[x] = new_val.real();
+                            local_imag[x] = new_val.imag();
                         }
                     }
                 } else {
                     for (int j = 0; j < m; j++) {
                         int x = j + (j & mask_inner) + (1 << controlQubit);
-                        local[x] = local[x] * cpx(gate.r11, gate.i11);
+                        cpx new_val = cpx(local_real[x], local_imag[x]) * cpx(gate.r11, gate.i11);
+                        local_real[x] = new_val.real();
+                        local_imag[x] = new_val.imag();
                     }
                 }
             }
@@ -187,12 +193,10 @@ inline void apply_gate_group(cpx* local, int numGates, int blockID, KernelGate h
                 for (int j = 0; j < m; j += 8) {
                     __m256i lo = _mm256_add_epi32(idx, _mm256_and_si256(idx, mask_inner));
                     __m256i hi = _mm256_add_epi32(lo, tar_flag);
-                    lo = _mm256_add_epi32(lo, lo);
-                    hi = _mm256_add_epi32(hi, hi);
-                    __m512d lo_real = _mm512_i32gather_pd(lo, local, 8);
-                    __m512d lo_imag = _mm512_i32gather_pd(lo, reinterpret_cast<value_t*>(local) + 1, 8);
-                    __m512d hi_real = _mm512_i32gather_pd(hi, local, 8);
-                    __m512d hi_imag = _mm512_i32gather_pd(hi, reinterpret_cast<value_t*>(local) + 1, 8);
+                    __m512d lo_real = _mm512_i32gather_pd(lo, local_real, 8);
+                    __m512d lo_imag = _mm512_i32gather_pd(lo, local_imag, 8);
+                    __m512d hi_real = _mm512_i32gather_pd(hi, local_real, 8);
+                    __m512d hi_imag = _mm512_i32gather_pd(hi, local_imag, 8);
                     __m512d r00 = _mm512_set1_pd(gate.r00);
                     __m512d i00 = _mm512_set1_pd(gate.i00);
                     __m512d r01 = _mm512_set1_pd(gate.r01);
@@ -201,8 +205,8 @@ inline void apply_gate_group(cpx* local, int numGates, int blockID, KernelGate h
                     lo_real_new = _mm512_fnmadd_pd(hi_imag, i01, _mm512_fmadd_pd(hi_real, r01, lo_real_new));
                     __m512d lo_imag_new = _mm512_fmadd_pd(lo_imag, r00, _mm512_mul_pd(lo_real, i00));
                     lo_imag_new = _mm512_fmadd_pd(hi_imag, r01, _mm512_fmadd_pd(hi_real, i01, lo_imag_new));
-                    _mm512_i32scatter_pd(local, lo, lo_real_new, 8);
-                    _mm512_i32scatter_pd(reinterpret_cast<value_t*>(local) + 1, lo, lo_imag_new, 8);
+                    _mm512_i32scatter_pd(local_real, lo, lo_real_new, 8);
+                    _mm512_i32scatter_pd(local_imag, lo, lo_imag_new, 8);
                     __m512d r10 = _mm512_set1_pd(gate.r10);
                     __m512d i10 = _mm512_set1_pd(gate.i10);
                     __m512d hi_real_new = _mm512_fnmadd_pd(lo_imag, i10, _mm512_mul_pd(lo_real, r10));
@@ -211,8 +215,8 @@ inline void apply_gate_group(cpx* local, int numGates, int blockID, KernelGate h
                     hi_real_new = _mm512_fnmadd_pd(hi_imag, i11, _mm512_fmadd_pd(hi_real, r11, hi_real_new));
                     __m512d hi_imag_new = _mm512_fmadd_pd(lo_imag, r10, _mm512_mul_pd(lo_real, i10));
                     hi_imag_new = _mm512_fmadd_pd(hi_imag, r11, _mm512_fmadd_pd(hi_real, i11, hi_imag_new));
-                    _mm512_i32scatter_pd(local, hi, hi_real_new, 8);
-                    _mm512_i32scatter_pd(reinterpret_cast<value_t*>(local) + 1, hi, hi_imag_new, 8);
+                    _mm512_i32scatter_pd(local_real, hi, hi_real_new, 8);
+                    _mm512_i32scatter_pd(local_imag, hi, hi_imag_new, 8);
                     idx = _mm256_add_epi32(idx, inc);
                 }
                 #else
@@ -235,12 +239,16 @@ inline void apply_gate_group(cpx* local, int numGates, int blockID, KernelGate h
                 if (!isHighBlock){
                     #pragma ivdep
                     for (int j = 0; j < m; j++) {
-                        local[j] = local[j] * cpx(gate.r00, gate.i00);
+                        cpx new_val = cpx(local_real[j], local_imag[j]) * cpx(gate.r00, gate.i00);
+                        local_real[j] = new_val.real();
+                        local_imag[j] = new_val.imag();
                     }
                 } else {
                     #pragma ivdep
                     for (int j = 0; j < m; j++) {
-                        local[j] = local[j] * cpx(gate.r11, gate.i11);
+                        cpx new_val = cpx(local_real[j], local_imag[j]) * cpx(gate.r11, gate.i11);
+                        local_real[j] = new_val.real();
+                        local_imag[j] = new_val.imag();
                     }
                 }
             }
@@ -252,7 +260,8 @@ void CpuExecutor::launchPerGateGroup(std::vector<Gate>& gates, KernelGate hostGa
     cpx* sv = deviceStateVec[0];
     #pragma omp parallel for
     for (int blockID = 0; blockID < (1 << (numLocalQubits - LOCAL_QUBIT_SIZE)); blockID++) {
-        cpx local[1 << LOCAL_QUBIT_SIZE];
+        value_t local_real[1 << LOCAL_QUBIT_SIZE];
+        value_t local_imag[1 << LOCAL_QUBIT_SIZE];
         idx_t blockHot = (idx_t(1) << numLocalQubits) - 1 - relatedQubits;
         unsigned int bias = 0;
         {
@@ -265,9 +274,9 @@ void CpuExecutor::launchPerGateGroup(std::vector<Gate>& gates, KernelGate hostGa
                 }
             }
         }
-        fetch_data(local, sv, bias, relatedQubits);
-        apply_gate_group(local, gates.size(), blockID, hostGates);
-        save_data(sv, local, bias, relatedQubits);
+        fetch_data(local_real, local_imag, sv, bias, relatedQubits);
+        apply_gate_group(local_real, local_imag, gates.size(), blockID, hostGates);
+        save_data(sv, local_real, local_imag, bias, relatedQubits);
     }
 }
 #elif GPU_BACKEND==2

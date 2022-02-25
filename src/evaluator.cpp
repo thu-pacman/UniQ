@@ -5,34 +5,6 @@ Evaluator* Evaluator::instance_ptr = nullptr;
 
 Evaluator::Evaluator() {
     memset(num_qbits_loaded_param, 0, sizeof(num_qbits_loaded_param));
-#ifndef USE_EVALUATOR_PREPROCESS
-    num_qbits_loaded_param[28] = true;
-    memcpy(pergate_single_perf[28][int(GateType::U1)], V100_U1, sizeof(double) * LOCAL_QUBIT_SIZE);
-    memcpy(pergate_single_perf[28][int(GateType::U2)], V100_U2, sizeof(double) * LOCAL_QUBIT_SIZE);
-    memcpy(pergate_single_perf[28][int(GateType::U3)], V100_U3, sizeof(double) * LOCAL_QUBIT_SIZE);
-    memcpy(pergate_single_perf[28][int(GateType::H )], V100_H , sizeof(double) * LOCAL_QUBIT_SIZE);
-    memcpy(pergate_single_perf[28][int(GateType::X )], V100_X , sizeof(double) * LOCAL_QUBIT_SIZE);
-    memcpy(pergate_single_perf[28][int(GateType::Y )], V100_Y , sizeof(double) * LOCAL_QUBIT_SIZE);
-    memcpy(pergate_single_perf[28][int(GateType::Z )], V100_Z , sizeof(double) * LOCAL_QUBIT_SIZE);
-    memcpy(pergate_single_perf[28][int(GateType::S )], V100_S , sizeof(double) * LOCAL_QUBIT_SIZE);
-    memcpy(pergate_single_perf[28][int(GateType::SDG )], V100_SDG , sizeof(double) * LOCAL_QUBIT_SIZE);
-    memcpy(pergate_single_perf[28][int(GateType::T )], V100_T , sizeof(double) * LOCAL_QUBIT_SIZE);
-    memcpy(pergate_single_perf[28][int(GateType::TDG )], V100_TDG , sizeof(double) * LOCAL_QUBIT_SIZE);
-    memcpy(pergate_single_perf[28][int(GateType::RX)], V100_RX, sizeof(double) * LOCAL_QUBIT_SIZE);
-    memcpy(pergate_single_perf[28][int(GateType::RY)], V100_RY, sizeof(double) * LOCAL_QUBIT_SIZE);
-    memcpy(pergate_single_perf[28][int(GateType::RZ)], V100_RZ, sizeof(double) * LOCAL_QUBIT_SIZE);
-
-    memcpy(pergate_ctr_perf[28][int(GateType::CNOT)], V100_CN , sizeof(double) * LOCAL_QUBIT_SIZE * LOCAL_QUBIT_SIZE);
-    memcpy(pergate_ctr_perf[28][int(GateType::CY  )], V100_CY , sizeof(double) * LOCAL_QUBIT_SIZE * LOCAL_QUBIT_SIZE);
-    memcpy(pergate_ctr_perf[28][int(GateType::CZ  )], V100_CZ , sizeof(double) * LOCAL_QUBIT_SIZE * LOCAL_QUBIT_SIZE);
-    memcpy(pergate_ctr_perf[28][int(GateType::CRX )], V100_CRX, sizeof(double) * LOCAL_QUBIT_SIZE * LOCAL_QUBIT_SIZE);
-    memcpy(pergate_ctr_perf[28][int(GateType::CRY )], V100_CRY, sizeof(double) * LOCAL_QUBIT_SIZE * LOCAL_QUBIT_SIZE);
-    memcpy(pergate_ctr_perf[28][int(GateType::CU1 )], V100_CU1, sizeof(double) * LOCAL_QUBIT_SIZE * LOCAL_QUBIT_SIZE);
-    memcpy(pergate_ctr_perf[28][int(GateType::CRZ )], V100_CRZ, sizeof(double) * LOCAL_QUBIT_SIZE * LOCAL_QUBIT_SIZE);
-
-    BLAS_perf[28][6] = 23.068396;
-    cutt_cost[28] = 11.367814;
-#endif
 }
 
 void Evaluator::loadPergateSingle(int numQubits, FILE* qbit_param, GateType gate_type) {
