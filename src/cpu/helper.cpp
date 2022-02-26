@@ -51,8 +51,8 @@ void initHpttPlans(std::vector<std::shared_ptr<hptt::Transpose<cpx>>*>& transPla
 }
 
 void copyBackState(std::vector<cpx>& result, const std::vector<cpx*>& deviceStateVec, int numQubits) {
-    result.resize(1ll << numQubits); // very slow ...
     idx_t elements = 1ll << (numQubits - MyGlobalVars::bit);
+    result.resize(elements * MyGlobalVars::localGPUs); // very slow ...
     for (int g = 0; g < MyGlobalVars::localGPUs; g++) {
         memcpy(result.data() + elements * g, deviceStateVec[g], sizeof(cpx) << (numQubits - MyGlobalVars::bit));
     }

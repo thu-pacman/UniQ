@@ -36,6 +36,7 @@ private:
     idx_t toPhysicalID(idx_t idx);
     idx_t toLogicID(idx_t idx);
     void masterCompile();
+    void transform();
 #if USE_MPI
     void gatherAndPrint(const std::vector<ResultItem>& results);
 #endif

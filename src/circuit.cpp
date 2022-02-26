@@ -16,6 +16,7 @@
 #include "cpu/cpu_executor.h"
 #include "cpu/entry.h"
 #endif
+#include <cstring>
 using namespace std;
 
 #if USE_GPU
@@ -206,6 +207,7 @@ void Circuit::masterCompile() {
 
 void Circuit::compile() {
     auto start = chrono::system_clock::now();
+    this->transform();
 #if USE_MPI
     if (MyMPI::rank == 0) {
         masterCompile();
@@ -337,4 +339,119 @@ void Circuit::printState() {
     for (auto& item: results)
         item.print();
 #endif
+}
+
+
+// transformations
+
+void hczh2cx(std::vector<Gate> &gates, int numQubits, bool erased[]) {
+    //   .       .
+    //   |       |
+    // H . H =>  X
+    for (int i = 0; i < gates.size(); i++) {
+        if (erased[i]) continue;
+        Gate& gate = gates[i];
+        if (gate.type == GateType::CZ) {
+            int h_low_ctr = -1, h_low_tar = -1, h_high_ctr = -1, h_high_tar = -1;
+            for (int j = i - 1; j >= 0; j--) {
+                if (gates[j].targetQubit == gate.targetQubit) {
+                    if (gates[j].type == GateType::H && !erased[j]) {
+                        h_low_tar = j;
+                    }
+                    break;
+                }
+                if (gates[j].controlQubit == gate.targetQubit) break;
+            }
+            for (int j = i - 1; j >= 0; j--) {
+                if (gates[j].targetQubit == gate.controlQubit) {
+                    if (gates[j].type == GateType::H && !erased[j]) {
+                        h_low_ctr = j;
+                    }
+                    break;
+                }
+                if (gates[j].controlQubit == gate.controlQubit) break;
+            }
+            for (int j = i + 1; j < gates.size(); j++) {
+                if (gates[j].targetQubit == gate.targetQubit) {
+                    if (gates[j].type == GateType::H && !erased[j]) {
+                        h_high_tar = j;
+                    }
+                    break;
+                }
+                if (gates[j].controlQubit == gate.targetQubit) break;
+            }
+            for (int j = i + 1; j < gates.size(); j++) {
+                if (gates[j].targetQubit == gate.controlQubit) {
+                    if (gates[j].type == GateType::H && !erased[j]) {
+                        h_high_ctr = j;
+                    }
+                    break;
+                }
+                if (gates[j].controlQubit == gate.controlQubit) break;
+            }
+            if (h_low_tar != -1 && h_high_tar != -1) {
+#ifdef SHOW_SCHEDULE
+                printf("[hczh2cx] %d %d %d\n", h_low_tar, i, h_high_tar);
+#endif
+                erased[h_low_tar] = erased[h_high_tar] = 1;
+                int id = gates[i].gateID;
+                gates[i] = Gate::CNOT(gate.controlQubit, gate.targetQubit);
+                gates[i].gateID = id;
+            } else if (h_low_ctr != -1 && h_high_ctr != -1) {
+#ifdef SHOW_SCHEDULE
+                printf("[hczh2cx] %d %d %d\n", h_low_ctr, i, h_high_ctr);
+#endif
+                erased[h_low_ctr] = erased[h_high_ctr] = 1;
+                int id = gates[i].gateID;
+                gates[i] = Gate::CNOT(gate.targetQubit, gate.controlQubit);
+                gates[i].gateID = id;
+            }
+        }
+    }
+}
+
+void single_qubit_fusion(std::vector<Gate> &gates, int numQubits, bool erased[]) {
+    int lastGate[numQubits];
+    memset(lastGate, -1, sizeof(int) * numQubits);
+    for (int i = 0; i < gates.size(); i++) {
+        if (erased[i]) continue;
+        Gate& gate = gates[i];
+        int old_id = lastGate[gate.targetQubit];
+        if (!gate.isControlGate() && old_id != -1 && !erased[old_id]) {
+            Gate& old = gates[old_id];
+            if (!old.isControlGate()) {
+#ifdef SHOW_SCHEDULE
+                printf("[single qubit fusion] %d %d\n", old_id, i);
+#endif
+                cpx mat[2][2];
+                // mat[0][0] = old.mat[0][0] * gate.mat[0][0] + old.mat[0][1] * gate.mat[1][0];
+                // mat[0][1] = old.mat[0][0] * gate.mat[0][1] + old.mat[0][1] * gate.mat[1][1];
+                // mat[1][0] = old.mat[1][0] * gate.mat[0][0] + old.mat[1][1] * gate.mat[1][0];
+                // mat[1][1] = old.mat[1][0] * gate.mat[0][1] + old.mat[1][1] * gate.mat[1][1];
+                mat[0][0] = gate.mat[0][0] * old.mat[0][0] + gate.mat[0][1] * old.mat[1][0];
+                mat[0][1] = gate.mat[0][0] * old.mat[0][1] + gate.mat[0][1] * old.mat[1][1];
+                mat[1][0] = gate.mat[1][0] * old.mat[0][0] + gate.mat[1][1] * old.mat[1][0];
+                mat[1][1] = gate.mat[1][0] * old.mat[0][1] + gate.mat[1][1] * old.mat[1][1];
+                erased[old_id] = true;
+                int id = gates[i].gateID;
+                gates[i] = Gate::U(gate.targetQubit, {mat[0][0], mat[0][1], mat[1][0], mat[1][1]});
+                gates[i].gateID = id;
+            }
+        }
+        if (gate.controlQubit != -1)
+            lastGate[gate.controlQubit] = i;
+        lastGate[gate.targetQubit] = i;
+    }
+}
+
+void Circuit::transform() {
+    bool erased[gates.size()];
+    memset(erased, 0, sizeof(bool) * gates.size());
+    hczh2cx(this->gates, numQubits, erased);
+    single_qubit_fusion(this->gates, numQubits, erased);
+    std::vector<Gate> new_gates;
+    for (int i = 0; i < gates.size(); i++)
+        if (!erased[i])
+            new_gates.push_back(gates[i]);
+    gates = new_gates;
 }
