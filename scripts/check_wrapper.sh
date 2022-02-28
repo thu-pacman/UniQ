@@ -2,8 +2,8 @@
 set -x
 # if [ "$SLURM_LOCALID" == "0" ]; then
 source init.sh ${@: 2}
-input_dir=../tests/input
-std_dir=../tests/output
+input_dir=../tests/input-extend
+std_dir=../tests/output-extend
 
 for test in ${tests[*]}; do
     $MPIRUN_CONFIG ./main $input_dir/$test.qasm > $1/$test.log
