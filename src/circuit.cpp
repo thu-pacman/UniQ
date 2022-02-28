@@ -424,10 +424,6 @@ void single_qubit_fusion(std::vector<Gate> &gates, int numQubits, bool erased[])
                 printf("[single qubit fusion] %d %d\n", old_id, i);
 #endif
                 cpx mat[2][2];
-                // mat[0][0] = old.mat[0][0] * gate.mat[0][0] + old.mat[0][1] * gate.mat[1][0];
-                // mat[0][1] = old.mat[0][0] * gate.mat[0][1] + old.mat[0][1] * gate.mat[1][1];
-                // mat[1][0] = old.mat[1][0] * gate.mat[0][0] + old.mat[1][1] * gate.mat[1][0];
-                // mat[1][1] = old.mat[1][0] * gate.mat[0][1] + old.mat[1][1] * gate.mat[1][1];
                 mat[0][0] = gate.mat[0][0] * old.mat[0][0] + gate.mat[0][1] * old.mat[1][0];
                 mat[0][1] = gate.mat[0][0] * old.mat[0][1] + gate.mat[0][1] * old.mat[1][1];
                 mat[1][0] = gate.mat[1][0] * old.mat[0][0] + gate.mat[1][1] * old.mat[1][0];
@@ -444,9 +440,191 @@ void single_qubit_fusion(std::vector<Gate> &gates, int numQubits, bool erased[])
     }
 }
 
+inline bool eps_equal(cpx a, cpx b) {
+    const value_t eps = 1e-14;
+    return a.real() - b.real() < eps && b.real() - a.real() < eps && a.imag() - b.imag() < eps && b.imag() - a.imag() < eps;
+}
+
+void mid_mat_fusion(std::vector<Gate>& gates, int numQubits, bool erased[]) {
+    // cirq.to_qasm() decomposes two qubit gates. This function tries to recover them.
+    // try to find matrix like
+    // a 0 0 b
+    // 0 c d 0
+    // 0 d c 0
+    // b 0 0 a
+    int last_chain[gates.size()][2]; // 0-target 1-control
+    int next_chain[gates.size()][2]; // 0-target 1-control
+    int cur[numQubits];
+    memset(last_chain, -1, sizeof(int) * gates.size() * 2);
+    memset(next_chain, 0x3f, sizeof(int) * gates.size() * 2);
+    printf("next memset result %d\n", next_chain[0][0]);
+    memset(cur, -1, sizeof(int) * numQubits);
+    for (int i = 0; i < gates.size(); i++) {
+        if (erased[i]) continue;
+        Gate& gate = gates[i];
+        int t = gate.targetQubit;
+        if (cur[t] != -1) {
+            last_chain[i][0] = cur[t];
+            next_chain[cur[t]][t != gates[cur[t]].targetQubit] = i;
+        }
+        cur[t] = i;
+        if (gate.isControlGate()) {
+            int c = gate.controlQubit;
+            if (cur[c] != -1) {
+                last_chain[i][1] = cur[c];
+                next_chain[cur[c]][c != gates[cur[c]].targetQubit] = i;
+            }
+            cur[c] = i;
+        }
+    }
+    for (int i = 20; i < 30; i++) printf("next_chain %d: %d %d\n", i, next_chain[i][0], next_chain[i][1]);
+    const int INF = 0x3f3f3f3f;
+    for (int i = 0; i < gates.size(); i++) {
+        // printf("iter %d\n", i);
+        if (erased[i]) continue;
+        // printf("next %d\n", i);
+        Gate& gate = gates[i];
+        if (gate.type == GateType::CNOT) { // TODO: not hardcode
+            std::vector<int> to_merge;
+            int idx_ctr = i, idx_tar = i;
+            while (idx_ctr < gates.size() || idx_tar < gates.size()) {
+                if (idx_ctr == idx_tar) { // at the same control gate
+                    to_merge.push_back(idx_ctr);
+                    idx_tar = next_chain[idx_tar][0];
+                    idx_ctr = next_chain[idx_ctr][1];
+                } else if (idx_ctr < idx_tar) {
+                    if (!gates[idx_ctr].isControlGate()) { // single qubit gate
+                        to_merge.push_back(idx_ctr);
+                        idx_ctr = next_chain[idx_ctr][0];
+                    } else {
+                        idx_ctr = INF;
+                    }
+                } else { // idx_ctr > idx_tar
+                    if (!gates[idx_tar].isControlGate()) { // single qubit gate
+                        to_merge.push_back(idx_tar);
+                        idx_tar = next_chain[idx_tar][0];
+                    } else {
+                        idx_tar = INF;
+                    }
+                }
+                // printf("%d %d\n", idx_tar,idx_ctr);
+                if (idx_tar < gates.size() && erased[idx_tar]) idx_tar = INF;
+                if (idx_ctr < gates.size() && erased[idx_ctr]) idx_ctr = INF;
+            }
+            std::vector<int> to_merge_before;
+            idx_ctr = i, idx_tar = i;
+            while (idx_ctr >= 0 || idx_tar >= 0) {
+                if (idx_ctr == idx_tar) { // at the same control gate
+                    to_merge_before.push_back(idx_ctr);
+                    idx_tar = last_chain[idx_tar][0];
+                    idx_ctr = last_chain[idx_ctr][1];
+                } else if (idx_ctr > idx_tar) {
+                    if (!gates[idx_ctr].isControlGate()) { // single qubit gate
+                        to_merge_before.push_back(idx_ctr);
+                        idx_ctr = last_chain[idx_ctr][0];
+                    } else {
+                        printf("%d: no prefix\n", idx_ctr);
+                        idx_ctr = -1;
+                    }
+                } else { // idx_ctr < idx_tar
+                    if (!gates[idx_tar].isControlGate()) { // single qubit gate
+                        to_merge_before.push_back(idx_tar);
+                        idx_tar = last_chain[idx_tar][0];
+                    } else {
+                        printf("%d: no prefix\n", idx_tar);
+                        idx_tar = -1;
+                    }
+                }
+                // printf("%d %d\n", idx_tar,idx_ctr);
+                if (idx_tar >= 0 && erased[idx_tar]) idx_tar = -1;
+                if (idx_ctr >= 0 && erased[idx_ctr]) idx_ctr = -1;
+            }
+            if (to_merge_before.size() > 1)
+                to_merge.insert(to_merge.begin(), to_merge_before.rbegin(), --to_merge_before.rend());
+            if (to_merge.size() > 1) {
+                for (int g_idx: to_merge) {
+                    printf("%d: %s %d %d\n", g_idx, gates[g_idx].name.c_str(), gates[g_idx].controlQubit, gates[g_idx].targetQubit);
+                }
+                cpx mat[4][4];
+                cpx mid_mat[2][2];
+                int mid_mat_idx = -1;
+                mat[0][0] = mat[1][1] = mat[2][2] = mat[3][3] = 1;
+                for (int j = 0; j < to_merge.size(); j++) {
+                    int g_idx = to_merge[j];
+                    auto& g = gates[g_idx];
+                    if (g.isControlGate()) {
+                        if (g.controlQubit == gate.controlQubit && g.targetQubit == gate.targetQubit) {
+                            for (int col = 0; col < 4; col++) {
+                                cpx lo = mat[2][col], hi = mat[3][col];
+                                mat[2][col] = g.mat[0][0] * lo + g.mat[0][1] * hi;
+                                mat[3][col] = g.mat[1][0] * lo + g.mat[1][1] * hi;
+                            }
+                        } else if (g.controlQubit == gate.targetQubit && g.targetQubit == gate.controlQubit) {
+                            for (int col = 0; col < 4; col++) {
+                                cpx lo = mat[1][col], hi = mat[3][col];
+                                mat[1][col] = g.mat[0][0] * lo + g.mat[0][1] * hi;
+                                mat[3][col] = g.mat[1][0] * lo + g.mat[1][1] * hi;
+                            }
+                        } else {
+                            UNREACHABLE();
+                        }
+                    } else {
+                        if (g.targetQubit == gate.controlQubit) {
+                            for (int col = 0; col < 4; col++) {
+                                cpx lo = mat[0][col], hi = mat[2][col];
+                                mat[0][col] = g.mat[0][0] * lo + g.mat[0][1] * hi;
+                                mat[2][col] = g.mat[1][0] * lo + g.mat[1][1] * hi;
+                                lo = mat[1][col], hi = mat[3][col];
+                                mat[1][col] = g.mat[0][0] * lo + g.mat[0][1] * hi;
+                                mat[3][col] = g.mat[1][0] * lo + g.mat[1][1] * hi;
+                            }
+                        } else if (g.targetQubit == gate.targetQubit) {
+                            for (int col = 0; col < 4; col++) {
+                                cpx lo = mat[0][col], hi = mat[1][col];
+                                mat[0][col] = g.mat[0][0] * lo + g.mat[0][1] * hi;
+                                mat[1][col] = g.mat[1][0] * lo + g.mat[1][1] * hi;
+                                lo = mat[2][col], hi = mat[3][col];
+                                mat[2][col] = g.mat[0][0] * lo + g.mat[0][1] * hi;
+                                mat[3][col] = g.mat[1][0] * lo + g.mat[1][1] * hi;
+                            }
+                        } else {
+                            UNREACHABLE();
+                        }
+                    }
+                    if (eps_equal(mat[0][1], cpx(0)) && eps_equal(mat[0][2], cpx(0)) &&
+                        eps_equal(mat[1][0], cpx(0)) && eps_equal(mat[1][3], cpx(0)) &&
+                        eps_equal(mat[2][0], cpx(0)) && eps_equal(mat[2][3], cpx(0)) &&
+                        eps_equal(mat[3][0], cpx(0)) && eps_equal(mat[3][1], cpx(0)) &&
+                        eps_equal(mat[0][0], mat[3][3]) && eps_equal(mat[1][1], mat[2][2]) && eps_equal(mat[1][2], mat[2][1]) && eps_equal(mat[0][3], mat[3][0])) {
+                            printf("ac\n");
+                            mid_mat_idx = j;
+                            mid_mat[0][0] = mat[0][0]; mid_mat[0][1] = mat[1][1]; mid_mat[1][0] = mat[2][1]; mid_mat[1][1] = mat[2][2];
+                            for (int row = 0; row < 4; row++) {
+                                for (int col = 0; col < 4; col++) {
+                                    printf("%.2f,%.2f ", mat[row][col].real(), mat[row][col].imag());
+                                }
+                                printf("\n");
+                            }
+                            printf("\n");
+                        }
+                }
+                printf("mid_mat_idx %d\n", mid_mat_idx);
+                printf("---------------------------------\n");
+                if (mid_mat_idx >= 3) {
+                    for (int j = 0; j < mid_mat_idx; j++)
+                        erased[to_merge[j]] = true;
+                    // int old_id = gates[to_merge[mid_mat_idx]].gateID;
+                    // gates[to_merge[mid_mat_idx]] = Gate::RUU(gate.controlQubit, gate.targetQubit, {mid_mat[0][0], mid_mat[0][1], mid_mat[1][0], mid_mat[1][1]}); // TODO: check order
+                }
+            }
+        }
+    }
+}
+
 void Circuit::transform() {
-    bool erased[gates.size()];
+    bool *erased = new bool[gates.size()];
     memset(erased, 0, sizeof(bool) * gates.size());
+    mid_mat_fusion(this->gates, numQubits, erased);
     hczh2cx(this->gates, numQubits, erased);
     single_qubit_fusion(this->gates, numQubits, erased);
     std::vector<Gate> new_gates;
@@ -454,4 +632,5 @@ void Circuit::transform() {
         if (!erased[i])
             new_gates.push_back(gates[i]);
     gates = new_gates;
+    delete[] erased;
 }
