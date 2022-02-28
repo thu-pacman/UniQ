@@ -3,7 +3,7 @@
 #include <cstdio>
 #include <memory>
 #include <complex>
-
+#include <vector>
 #if USE_MPI
 #include <mpi.h>
 #endif
@@ -92,3 +92,5 @@ bool isUnitary(std::unique_ptr<cpx[]>& mat, int n);
 bool operator < (const cpx& a, const cpx& b);
 
 int get_bit(int n);
+
+idx_t to_bitmap(std::vector<int> qubits);

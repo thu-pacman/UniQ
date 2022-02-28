@@ -6,20 +6,6 @@
 
 static int globalGateID = 0;
 
-Gate Gate::CCX(int controlQubit, int controlQubit2, int targetQubit) {
-    Gate g;
-    g.gateID = ++ globalGateID;
-    g.type = GateType::CCX;
-    g.mat[0][0] = cpx(0); g.mat[0][1] = cpx(1);
-    g.mat[1][0] = cpx(1); g.mat[1][1] = cpx(0);
-    g.name = "CCX";
-    g.targetQubit = targetQubit;
-    g.controlQubit = controlQubit;
-    g.controlQubit2 = controlQubit2;
-    return g;
-
-}
-
 Gate Gate::CNOT(int controlQubit, int targetQubit) {
     Gate g;
     g.gateID = ++ globalGateID;
@@ -364,6 +350,40 @@ Gate Gate::GCC(int targetQubit, value_t r, value_t i) {
     return g;
 }
 
+Gate Gate::RZZ(int targetQubit1, int targetQubit2, value_t theta) {
+    // [00]  0    0    0
+    //  0   [01]  0    0
+    //  0    0   [01]  0
+    //  0    0    0   [00]
+    Gate g;
+    g.gateID = ++ globalGateID;
+    g.type = GateType::RZZ;
+    g.mat[0][0] = cpx(cos(theta/2), -sin(theta/2)); g.mat[0][1] = cpx(cos(theta/2), sin(theta/2));
+    g.mat[1][0] = cpx(0); g.mat[1][1] = cpx(0);
+    g.name = "RZZ";
+    g.encodeQubit = targetQubit1;
+    g.targetQubit = targetQubit2;
+    g.controlQubit = -3;
+    return g;
+}
+
+Gate Gate::MCU(std::vector<int> controlQubits, int targetQubit, std::vector<cpx> params) {
+    printf("[warning] MCU gate is not tested!\n");
+    if (controlQubits.size() == 0) return Gate::U(targetQubit, params);
+    if (controlQubits.size() == 1) return Gate::CU(controlQubits[0], targetQubit, params);
+    Gate g;
+    g.gateID = ++globalGateID;
+    g.type = GateType::MCU;
+    g.mat[0][0] = params[0]; g.mat[0][1] = params[1];
+    g.mat[1][0] = params[2]; g.mat[1][1] = params[3];
+    g.name = "MCU";
+    g.encodeQubit = to_bitmap(controlQubits);
+    g.targetQubit = targetQubit;
+    g.controlQubit = -2;
+    g.controlQubits = controlQubits;
+    return g;
+}
+
 auto gen_01_float = []() {
     return rand() * 1.0 / RAND_MAX;
 };
@@ -396,11 +416,6 @@ Gate Gate::random(int lo, int hi, GateType type) {
         t = rand() % (hi - lo) + lo;
     };
     switch (type) {
-        case GateType::CCX: {
-            int t, c1, c2;
-            gen_c2_id(t, c1, c2);
-            return CCX(c1, c2, t);
-        }
         case GateType::CNOT: {
             int t, c1;
             gen_c1_id(t, c1);
@@ -566,17 +581,8 @@ Gate Gate::control(int controlQubit, int targetQubit, GateType type) {
     exit(1);
 }
 
-GateType Gate::toCU(GateType type) {
-    if (type == GateType::CCX) {
-        return GateType::CNOT;
-    } else {
-        UNREACHABLE()
-    }
-}
-
 GateType Gate::toU(GateType type) {
     switch (type) {
-        case GateType::CCX:
         case GateType::CNOT:
             return GateType::X;
         case GateType::CY:
@@ -606,7 +612,7 @@ std::vector<unsigned char> Gate::serialize() const {
     auto name_len = name.length();
     int len =
         sizeof(name_len) + name.length() + 1 + sizeof(gateID) + sizeof(type) + sizeof(mat)
-        + sizeof(targetQubit) + sizeof(controlQubit) + sizeof(controlQubit2);
+        + sizeof(targetQubit) + sizeof(controlQubit) + sizeof(encodeQubit);
     std::vector<unsigned char> ret; ret.resize(len);
     unsigned char* arr = ret.data();
     int cur = 0;
@@ -617,7 +623,7 @@ std::vector<unsigned char> Gate::serialize() const {
     strcpy(reinterpret_cast<char*>(arr) + cur, name.c_str()); cur += name_len + 1;
     SERIALIZE_STEP(targetQubit);
     SERIALIZE_STEP(controlQubit);
-    SERIALIZE_STEP(controlQubit2);
+    SERIALIZE_STEP(encodeQubit);
     assert(cur == len);
     return ret;
 }
@@ -631,6 +637,6 @@ Gate Gate::deserialize(const unsigned char* arr, int& cur) {
     g.name = std::string(reinterpret_cast<const char*>(arr) + cur, name_len); cur += name_len + 1;
     DESERIALIZE_STEP(g.targetQubit);
     DESERIALIZE_STEP(g.controlQubit);
-    DESERIALIZE_STEP(g.controlQubit2);
+    DESERIALIZE_STEP(g.encodeQubit);
     return g;
 }

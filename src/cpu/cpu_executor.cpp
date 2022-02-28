@@ -94,7 +94,39 @@ inline void apply_gate_group(value_t* local_real, value_t* local_imag, int numGa
         int targetQubit = gate.targetQubit;
         char controlIsGlobal = gate.controlIsGlobal;
         char targetIsGlobal = gate.targetIsGlobal;
-        if (!controlIsGlobal) {
+        if (controlQubit == -2) { // mcGate
+            UNIMPLEMENTED();
+        } else if (controlQubit == -3) {
+            int m = 1 << (LOCAL_QUBIT_SIZE - 2);
+            int low_bit = std::min((int) gate.encodeQubit, targetQubit);
+            int high_bit = std::max((int) gate.encodeQubit, targetQubit);
+            int mask_inner = (1 << (LOCAL_QUBIT_SIZE - 2)) - (1 << low_bit);
+            int mask_outer = (1 << (LOCAL_QUBIT_SIZE - 1)) - (1 << high_bit);
+            for (int j = 0; j < m; j++) {
+                int lo = j + (j & mask_inner);
+                lo = lo + (lo & mask_outer);
+                int s00 = lo;
+                int s01 = s00 | 1 << targetQubit;
+                int s10 = s00 | 1 << gate.encodeQubit;
+                int s11 = s01 | s10;
+                cpx v00 = cpx(local_real[s00], local_imag[s00]);
+                cpx v11 = cpx(local_real[s11], local_imag[s11]);
+                cpx n00 = v00 * cpx(gate.r00, gate.i00) + v11 * cpx(gate.r11, gate.i11);
+                cpx n11 = v11 * cpx(gate.r00, gate.i00) + v00 * cpx(gate.r11, gate.i11);
+                local_real[s00] = n00.real();
+                local_imag[s00] = n00.imag();
+                local_real[s11] = n11.real();
+                local_imag[s11] = n11.imag();
+                cpx v01 = cpx(local_real[s01], local_imag[s01]);
+                cpx v10 = cpx(local_real[s10], local_imag[s10]);
+                cpx n01 = v01 * cpx(gate.r01, gate.i01) + v10 * cpx(gate.r10, gate.i10);
+                cpx n10 = v10 * cpx(gate.r01, gate.i01) + v01 * cpx(gate.r10, gate.i10);
+                local_real[s01] = n01.real();
+                local_imag[s01] = n01.imag();
+                local_real[s10] = n10.real();
+                local_imag[s10] = n10.imag();
+            }
+        } else if (!controlIsGlobal) {
             if (!targetIsGlobal) {
                 int m = 1 << (LOCAL_QUBIT_SIZE - 2);
                 int low_bit = std::min(controlQubit, targetQubit);
@@ -278,6 +310,10 @@ void CpuExecutor::launchPerGateGroup(std::vector<Gate>& gates, KernelGate hostGa
         apply_gate_group(local_real, local_imag, gates.size(), blockID, hostGates);
         save_data(sv, local_real, local_imag, bias, relatedQubits);
     }
+    // for (int i = 0; i < gates.size(); i++) {
+    //     printf("Gate %d [%d %d %lld] %d %d\n", hostGates[i].type, hostGates[i].encodeQubit, hostGates[i].controlQubit, hostGates[i].targetQubit, hostGates[i].controlIsGlobal, hostGates[i].targetIsGlobal);
+    // }
+    // printf("apply gate group: %f %f %f %f\n", sv[0].real(), sv[0].imag(), sv[1].real(), sv[1].imag());
 }
 #elif GPU_BACKEND==2
 void CpuExecutor::launchPerGateGroup(std::vector<Gate>& gates, KernelGate hostGates[], const State& state, idx_t relatedQubits, int numLocalQubits) {

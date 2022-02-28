@@ -53,9 +53,15 @@ std::pair<std::string, std::vector<value_t>> parse_gate(char buf[]) {
         } else if (st[0] == 'p' && st[1] == 'i' && st[2] == '/') {
             param = -pi;
             st = st.erase(0, 3);
+        } else if (st[0] == 'p' && st[1] == 'i') {
+            param = pi;
+            st = st.erase(0, 2);
         }
-        if (param > 0)
-            param *= std::stod(st);
+        if (param > 0) {
+            if (st.length() > 0) {
+                param *= std::stod(st);
+            }
+        }
         else
             param = pi / std::stod(st);
         params.push_back(param);
@@ -88,12 +94,6 @@ std::unique_ptr<Circuit> parse_circuit(const std::string &filename) {
             assert(qid.size() == 2);
             c->addGate(Gate::CNOT(qid[0], qid[1]));
             // printf("cx %d %d\n", qid[0], qid[1]);
-        } else if (strcmp(buffer, "ccx") == 0) {
-            fscanf(f, "%s", buffer);
-            auto qid = parse_qid(buffer);
-            assert(qid.size() == 3);
-            c->addGate(Gate::CCX(qid[0], qid[1], qid[2]));
-            // printf("ccx %d %d %d\n", qid[0], qid[1], qid[2]);
         } else if (strcmp(buffer, "cy") == 0) {
             fscanf(f, "%s", buffer);
             auto qid = parse_qid(buffer);
@@ -191,6 +191,13 @@ std::unique_ptr<Circuit> parse_circuit(const std::string &filename) {
                 assert(qid.size() == 1);
                 c->addGate(Gate::U1(qid[0], gate.second[0]));
                 // printf("u1 %d %f\n", qid[0], gate.second[0]);
+            } else if (gate.first == "u2") {
+                assert(gate.second.size() == 1);
+                fscanf(f, "%s", buffer);
+                auto qid = parse_qid(buffer);
+                assert(qid.size() == 1);
+                c->addGate(Gate::U2(qid[0], gate.second[0], gate.second[1]));
+                // printf("u1 %d %f\n", qid[0], gate.second[0]);
             } else if (gate.first == "u3") {
                 assert(gate.second.size() == 3);
                 fscanf(f, "%s", buffer);
@@ -219,6 +226,13 @@ std::unique_ptr<Circuit> parse_circuit(const std::string &filename) {
                 assert(qid.size() == 1);
                 c->addGate(Gate::RZ(qid[0], gate.second[0]));
                 // printf("rz %d %f\n", qid[0], gate.second[0]);
+            } else if (gate.first == "rzz") {
+                assert(gate.second.size() == 1);
+                fscanf(f, "%s", buffer);
+                auto qid = parse_qid(buffer);
+                assert(qid.size() == 1);
+                c->addGate(Gate::RZZ(qid[0], qid[1], gate.second[0]));
+                // printf("rzz %d %d %f\n", qid[0], qid[1], gate.second[0]);
             } else {
                 printf("unrecognized token %s\n", buffer);
                 exit(1);

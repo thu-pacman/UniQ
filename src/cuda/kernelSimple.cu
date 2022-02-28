@@ -323,7 +323,7 @@ void kernelExecSimple(cpx* deviceStateVec_, int numQubits, const std::vector<Gat
     for (auto& gate: gates) {
         switch (gate.type) {
             case GateType::CCX: {
-                CCXKernel<1<<THREAD_DEP><<<nVec>>(SINGLE_SIZE_DEP + THREAD_DEP), 1<<THREAD_DEP>>>(deviceStateVec, numQubit_, gate.controlQubit, gate.controlQubit2, gate.targetQubit);
+                CCXKernel<1<<THREAD_DEP><<<nVec>>(SINGLE_SIZE_DEP + THREAD_DEP), 1<<THREAD_DEP>>>(deviceStateVec, numQubit_, gate.controlQubit, gate.encodeQubit, gate.targetQubit);
                 break;
             }
             case GateType::CNOT: {

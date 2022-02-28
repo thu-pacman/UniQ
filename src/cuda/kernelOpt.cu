@@ -219,7 +219,7 @@ __device__ void doCompute(int numGates, int* loArr, int* shiftAt) {
         char controlIsGlobal = deviceGates[i].controlIsGlobal;
         char targetIsGlobal = deviceGates[i].targetIsGlobal;
         if (deviceGates[i].type == GateType::CCX) {
-            int controlQubit2 = deviceGates[i].controlQubit2;
+            int encodeQubit = deviceGates[i].encodeQubit;
             int control2IsGlobal = deviceGates[i].control2IsGlobal;
             if (!control2IsGlobal) {
                 int m = 1 << (LOCAL_QUBIT_SIZE - 1);
@@ -228,7 +228,7 @@ __device__ void doCompute(int numGates, int* loArr, int* shiftAt) {
                 int maskTarget = (1 << targetQubit) - 1;
                 for (int j = threadIdx.x; j < m; j += blockSize) {
                     int lo = ((j >> targetQubit) << (targetQubit + 1)) | (j & maskTarget);
-                    if (!(lo >> controlQubit & 1) || !(lo >> controlQubit2 & 1))
+                    if (!(lo >> controlQubit & 1) || !(lo >> encodeQubit & 1))
                         continue;
                     int hi = lo | (1 << targetQubit);
                     lo ^= lo >> 3 & 7;
@@ -237,7 +237,7 @@ __device__ void doCompute(int numGates, int* loArr, int* shiftAt) {
                 }
                 continue;
             }
-            if (control2IsGlobal == 1 && !((blockIdx.x >> controlQubit2) & 1)) {
+            if (control2IsGlobal == 1 && !((blockIdx.x >> encodeQubit) & 1)) {
                 continue;
             }
         }
