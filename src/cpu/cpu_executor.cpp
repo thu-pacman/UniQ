@@ -333,10 +333,14 @@ inline void apply_gate_group(value_t* local_real, value_t* local_imag, int numGa
                     lo = lo + (lo & mask_outer);
                     lo += 1 << controlQubit;
                     int hi = lo | (1 << targetQubit);
-                    cpx lo_val = local[lo];
-                    cpx hi_val = local[hi];
-                    local[lo] = lo_val * cpx(gate.r00, gate.i00) + hi_val * cpx(gate.r01, gate.i01);
-                    local[hi] = lo_val * cpx(gate.r10, gate.i10) + hi_val * cpx(gate.r11, gate.i11);
+                    cpx lo_val = cpx(local_real[lo], local_imag[lo]);
+                    cpx hi_val = cpx(local_real[hi], local_imag[hi]);
+                    cpx lo_val_new = lo_val * cpx(gate.r00, gate.i00) + hi_val * cpx(gate.r01, gate.i01);
+                    local_real[lo] = lo_val_new.real();
+                    local_imag[lo] = lo_val_new.imag();
+                    cpx hi_val_new = lo_val * cpx(gate.r10, gate.i10) + hi_val * cpx(gate.r11, gate.i11);
+                    local_real[hi] = hi_val_new.real();
+                    local_imag[hi] = hi_val_new.imag();
                 }
                 #endif
             } else {
@@ -451,10 +455,14 @@ inline void apply_gate_group(value_t* local_real, value_t* local_imag, int numGa
                 for (int j = 0; j < m; j++) {
                     int lo = j + (j & mask_inner);
                     int hi = lo | (1 << targetQubit);
-                    cpx lo_val = local[lo];
-                    cpx hi_val = local[hi];
-                    local[lo] = lo_val * cpx(gate.r00, gate.i00) + hi_val * cpx(gate.r01, gate.i01);
-                    local[hi] = lo_val * cpx(gate.r10, gate.i10) + hi_val * cpx(gate.r11, gate.i11);
+                    cpx lo_val = cpx(local_real[lo], local_imag[lo]);
+                    cpx hi_val = cpx(local_real[hi], local_imag[hi]);
+                    cpx lo_val_new = lo_val * cpx(gate.r00, gate.i00) + hi_val * cpx(gate.r01, gate.i01);
+                    local_real[lo] = lo_val_new.real();
+                    local_imag[lo] = lo_val_new.imag();
+                    cpx hi_val_new = lo_val * cpx(gate.r10, gate.i10) + hi_val * cpx(gate.r11, gate.i11);
+                    local_real[hi] = hi_val_new.real();
+                    local_imag[hi] = hi_val_new.imag();
                 }
                 #endif
             } else {

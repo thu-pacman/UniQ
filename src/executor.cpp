@@ -105,8 +105,42 @@ KernelGate Executor::getGate(const Gate& gate, int part_id, int numLocalQubits, 
                 toID.at(gate.targetQubit), 1 - IS_SHARE_QUBIT(gate.targetQubit),
                 gate.mat
             );
-        } else {
-            UNIMPLEMENTED();
+        } else if (IS_LOCAL_QUBIT(t1) && !IS_LOCAL_QUBIT(t2)) {
+            if (!IS_HIGH_PART(part_id, t2)) {
+                cpx mat[2][2] = {{gate.mat[0][0], cpx(0.0)}, {cpx(0.0), gate.mat[0][1]}};
+                return KernelGate::singleQubitGate(
+                    GateType::DIG,
+                    toID.at(t1), 1 - IS_SHARE_QUBIT(t1),
+                    mat
+                );
+            } else {
+                cpx mat[2][2] = {{gate.mat[0][1], cpx(0.0)}, {cpx(0.0), gate.mat[0][0]}};
+                return KernelGate::singleQubitGate(
+                    GateType::DIG,
+                    toID.at(t1), 1 - IS_SHARE_QUBIT(t1),
+                    mat
+                );
+            }
+        } else if (!IS_LOCAL_QUBIT(t1) && IS_LOCAL_QUBIT(t2)) {
+            if (!IS_HIGH_PART(part_id, t1)) {
+                cpx mat[2][2] = {{gate.mat[0][0], cpx(0.0)}, {cpx(0.0), gate.mat[0][1]}};
+                return KernelGate::singleQubitGate(
+                    GateType::DIG,
+                    toID.at(t2), 1 - IS_SHARE_QUBIT(t2),
+                    mat
+                );
+            } else {
+                cpx mat[2][2] = {{gate.mat[0][1], cpx(0.0)}, {cpx(0.0), gate.mat[0][0]}};
+                return KernelGate::singleQubitGate(
+                    GateType::DIG,
+                    toID.at(t2), 1 - IS_SHARE_QUBIT(t2),
+                    mat
+                );
+            }
+        } else { // !IS_LOCAL_QUBIT(t1) && !IS_LOCAL_QUBIT(t2)
+            cpx val = IS_HIGH_PART(part_id, t1) == IS_HIGH_PART(part_id, t2) ? gate.mat[0][0] : gate.mat[0][1];
+            cpx mat[2][2] = {{val, cpx(0.0)}, {cpx(0.0), val}};
+            return KernelGate::singleQubitGate(GateType::GCC, 0, 0, mat);
         }
     } else if (gate.isControlGate()) {
         int c = gate.controlQubit, t = gate.targetQubit;

@@ -5,7 +5,7 @@
 #include "utils.h"
 
 enum class GateType {
-    CNOT, CY, CZ, CRX, CRY, CU1, CRZ, CU, U1, U2, U3, U, H, X, Y, Z, S, SDG, T, TDG, RX, RY, RZ, RZZ, MCU, TOTAL, ID, GII, GZZ, GOC, GCC, MCI
+    CNOT, CY, CZ, CRX, CRY, CU1, CRZ, CU, U1, U2, U3, U, H, X, Y, Z, S, SDG, T, TDG, RX, RY, RZ, RZZ, MCU, TOTAL, ID, GII, GZZ, GOC, GCC, DIG, MCI
 };
 
 struct Gate {
@@ -32,7 +32,7 @@ struct Gate {
         return controlQubit == -3;
     }
     bool isDiagonal() const {
-        return type == GateType::CZ || type == GateType::CU1 || type == GateType::CRZ || type == GateType::U1 || type == GateType::Z || type == GateType::S || type == GateType::SDG || type == GateType::T || type == GateType::TDG || type == GateType::RZ || type == GateType::RZZ;
+        return type == GateType::CZ || type == GateType::CU1 || type == GateType::CRZ || type == GateType::U1 || type == GateType::Z || type == GateType::S || type == GateType::SDG || type == GateType::T || type == GateType::TDG || type == GateType::RZ || type == GateType::RZZ || type == GateType::DIG;
     }
     bool hasControl(int q) const {
         if (isControlGate()) return controlQubit == q;
