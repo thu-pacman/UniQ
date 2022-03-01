@@ -34,8 +34,12 @@ void Executor::run() {
             if (INPLACE) {
                 this->inplaceAll2All(localGroup.a2aCommSize, localGroup.a2aComm, localGroup.state);
             } else {
+                // auto tag1 = std::chrono::system_clock::now();
                 this->transpose(localGroup.transPlans);
+                // auto tag2 = std::chrono::system_clock::now();
                 this->all2all(localGroup.a2aCommSize, localGroup.a2aComm);
+                // auto tag3 = std::chrono::system_clock::now();
+                // Logger::add("comm: transpose %d us all2all %d us\n", (int) std::chrono::duration_cast<std::chrono::microseconds>(tag2 - tag1).count(), (int) std::chrono::duration_cast<std::chrono::microseconds>(tag3 - tag2).count());
             }
             this->setState(localGroup.state);
 #ifdef ENABLE_OVERLAP

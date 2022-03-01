@@ -605,6 +605,32 @@ void CpuExecutor::launchPerGateGroup(std::vector<Gate>& gates, KernelGate hostGa
                 }
                 break;
             }
+            case GateType::RZZ: {
+                int c = gate.encodeQubit;
+                int t = gate.targetQubit;
+                idx_t low_bit = std::min(c, t);
+                idx_t high_bit = std::max(c, t);
+                idx_t mask_inner = (idx_t(1) << low_bit) - 1;
+                idx_t mask_middle = (idx_t(1) << (high_bit - 1)) - 1 - mask_inner;
+                idx_t mask_outer = (idx_t(1) << (numLocalQubits - 2)) - 1 - mask_inner - mask_middle;
+                #pragma omp for
+                for (idx_t i = 0; i < (idx_t(1) << (numLocalQubits - 2)); i++) {
+                    idx_t s00 = (i & mask_inner) + ((i & mask_middle) << 1) + ((i & mask_outer) << 2);
+                    idx_t s01 = s00 | (idx_t(1) << t);
+                    idx_t s10 = s00 | (idx_t(1) << c);
+                    idx_t s11 = s01 | s10;
+                    cpx v00 = deviceStateVec[0][s00];
+                    cpx v11 = deviceStateVec[0][s11];
+                    deviceStateVec[0][s00] = v00 * cpx(gate.r00, gate.i00) + v11 * cpx(gate.r11, gate.i11);
+                    deviceStateVec[0][s11] = v11 * cpx(gate.r00, gate.i00) + v00 * cpx(gate.r11, gate.i11);
+
+                    cpx v01 = deviceStateVec[0][s01];
+                    cpx v10 = deviceStateVec[0][s10];
+                    deviceStateVec[0][s01] = v01 * cpx(gate.r01, gate.i01) + v10 * cpx(gate.r10, gate.i10);
+                    deviceStateVec[0][s10] = v10 * cpx(gate.r01, gate.i01) + v01 * cpx(gate.r10, gate.i10);
+                }
+                break;
+            }
             default: {
                 UNIMPLEMENTED();
             }
