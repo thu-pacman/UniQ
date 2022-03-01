@@ -97,15 +97,17 @@ KernelGate Executor::getGate(const Gate& gate, int part_id, int numLocalQubits, 
             return KernelGate::mcGate(GateType::MCI, cbits, 0, 0, gate.mat);
         }
     } else if (gate.isTwoQubitGate()) {
-        if (gate.isDiagonal()) {
+        int t1 = gate.encodeQubit, t2 = gate.targetQubit;
+        if (IS_LOCAL_QUBIT(t1) && IS_LOCAL_QUBIT(t2)) {
+            return KernelGate::twoQubitGate(
+                gate.type,
+                toID.at(gate.encodeQubit), 1 - IS_SHARE_QUBIT(gate.encodeQubit),
+                toID.at(gate.targetQubit), 1 - IS_SHARE_QUBIT(gate.targetQubit),
+                gate.mat
+            );
+        } else {
             UNIMPLEMENTED();
         }
-        return KernelGate::twoQubitGate(
-            gate.type,
-            toID.at(gate.encodeQubit), 1 - IS_SHARE_QUBIT(gate.encodeQubit),
-            toID.at(gate.targetQubit), 1 - IS_SHARE_QUBIT(gate.targetQubit),
-            gate.mat
-        );
     } else if (gate.isControlGate()) {
         int c = gate.controlQubit, t = gate.targetQubit;
         if (IS_LOCAL_QUBIT(c) && IS_LOCAL_QUBIT(t)) { // CU(c, t)

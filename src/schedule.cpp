@@ -45,9 +45,9 @@ idx_t GateGroup::newRelated(idx_t relatedQubits, const Gate& gate, idx_t localQu
       if (enableGlobal) {
         if (!gate.isDiagonal()) {
             relatedQubits |= idx_t(1) << gate.targetQubit;
-        }
-        if (gate.isTwoQubitGate()) {
-            relatedQubits |= idx_t(1) << gate.encodeQubit;
+            if (gate.isTwoQubitGate()) {
+                relatedQubits |= idx_t(1) << gate.encodeQubit;
+            }
         }
     } else {
         if (!gate.isDiagonal() || (localQubits >> gate.targetQubit & 1))
