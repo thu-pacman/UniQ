@@ -346,6 +346,25 @@ inline void apply_gate_group(value_t* local_real, value_t* local_imag, int numGa
                 int mask_inner = (1 << (LOCAL_QUBIT_SIZE - 1)) - (1 << controlQubit);
                 if (!isHighBlock){
                     if (hostGates[i].type == GateType::CRZ) {
+                        #ifdef USE_AVX512
+                        __m256i mask_inner = _mm256_set1_epi32((1 << (LOCAL_QUBIT_SIZE - 2)) - (1 << controlQubit));
+                        __m256i ctr_flag = _mm256_set1_epi32(1 << gate.encodeQubit);
+                        __m256i idx = _mm256_set_epi32(0, 1, 2, 3, 4, 5, 6, 7);
+                        const __m256i inc = _mm256_set1_epi32(8);
+                        for (int j = 0; j < m; j += 8) {
+                            __m256i x = _mm256_add_epi32(idx, _mm256_and_si256(idx, mask_inner));
+                            x = _mm256_add_epi32(x, ctr_flag);
+                            __m512d r00 = _mm512_set1_pd(gate.r00);
+                            __m512d i00 = _mm512_set1_pd(gate.i00);
+                            __m512d x_real = _mm512_i32gather_pd(x, local_real, 8);
+                            __m512d x_imag = _mm512_i32gather_pd(x, local_imag, 8);
+                            __m512d x_real_new = _mm512_fnmadd_pd(x_imag, i00, _mm512_mul_pd(x_real, r00));
+                            __m512d x_imag_new = _mm512_fmadd_pd(x_imag, r00, _mm512_mul_pd(x_real, i00));
+                            _mm512_i32scatter_pd(local_real, x, x_real_new, 8);
+                            _mm512_i32scatter_pd(local_imag, x, x_imag_new, 8);
+                            idx = _mm256_add_epi32(idx, inc);
+                        }
+                        #else
                         #pragma ivdep
                         for (int j = 0; j < m; j++) {
                             int x = j + (j & mask_inner) + (1 << controlQubit);
@@ -353,8 +372,28 @@ inline void apply_gate_group(value_t* local_real, value_t* local_imag, int numGa
                             local_real[x] = new_val.real();
                             local_imag[x] = new_val.imag();
                         }
+                        #endif
                     }
                 } else {
+                    #ifdef USE_AVX512
+                    __m256i mask_inner = _mm256_set1_epi32((1 << (LOCAL_QUBIT_SIZE - 2)) - (1 << controlQubit));
+                    __m256i ctr_flag = _mm256_set1_epi32(1 << gate.encodeQubit);
+                    __m256i idx = _mm256_set_epi32(0, 1, 2, 3, 4, 5, 6, 7);
+                    const __m256i inc = _mm256_set1_epi32(8);
+                    for (int j = 0; j < m; j += 8) {
+                        __m256i x = _mm256_add_epi32(idx, _mm256_and_si256(idx, mask_inner));
+                        x = _mm256_add_epi32(x, ctr_flag);
+                        __m512d r11 = _mm512_set1_pd(gate.r11);
+                        __m512d i11 = _mm512_set1_pd(gate.i11);
+                        __m512d x_real = _mm512_i32gather_pd(x, local_real, 8);
+                        __m512d x_imag = _mm512_i32gather_pd(x, local_imag, 8);
+                        __m512d x_real_new = _mm512_fnmadd_pd(x_imag, i11, _mm512_mul_pd(x_real, r11));
+                        __m512d x_imag_new = _mm512_fmadd_pd(x_imag, r11, _mm512_mul_pd(x_real, i11));
+                        _mm512_i32scatter_pd(local_real, x, x_real_new, 8);
+                        _mm512_i32scatter_pd(local_imag, x, x_imag_new, 8);
+                        idx = _mm256_add_epi32(idx, inc);
+                    }
+                    #else
                     #pragma ivdep
                     for (int j = 0; j < m; j++) {
                         int x = j + (j & mask_inner) + (1 << controlQubit);
@@ -362,6 +401,7 @@ inline void apply_gate_group(value_t* local_real, value_t* local_imag, int numGa
                         local_real[x] = new_val.real();
                         local_imag[x] = new_val.imag();
                     }
+                    #endif
                 }
             }
         } else {
@@ -421,21 +461,29 @@ inline void apply_gate_group(value_t* local_real, value_t* local_imag, int numGa
                 bool isHighBlock = (blockID >> targetQubit) & 1;
                 // TODO: switch (gate)
                 int m = 1 << LOCAL_QUBIT_SIZE;
-                if (!isHighBlock){
-                    #pragma ivdep
-                    for (int j = 0; j < m; j++) {
-                        cpx new_val = cpx(local_real[j], local_imag[j]) * cpx(gate.r00, gate.i00);
-                        local_real[j] = new_val.real();
-                        local_imag[j] = new_val.imag();
-                    }
-                } else {
-                    #pragma ivdep
-                    for (int j = 0; j < m; j++) {
-                        cpx new_val = cpx(local_real[j], local_imag[j]) * cpx(gate.r11, gate.i11);
-                        local_real[j] = new_val.real();
-                        local_imag[j] = new_val.imag();
-                    }
+                #ifdef USE_AVX512
+                __m512d rr = _mm512_set1_pd(isHighBlock ? gate.r11 : gate.r00);
+                __m512d ii = _mm512_set1_pd(isHighBlock ? gate.i11 : gate.i00);
+                __m256i idx = _mm256_set_epi32(0, 1, 2, 3, 4, 5, 6, 7);
+                const __m256i inc = _mm256_set1_epi32(8);
+                for (int j = 0; j < m; j += 8) {
+                    __m512d x_real = _mm512_i32gather_pd(idx, local_real, 8);
+                    __m512d x_imag = _mm512_i32gather_pd(idx, local_imag, 8);
+                    __m512d x_real_new = _mm512_fnmadd_pd(x_imag, ii, _mm512_mul_pd(x_real, rr));
+                    __m512d x_imag_new = _mm512_fmadd_pd(x_imag, rr, _mm512_mul_pd(x_real, ii));
+                    _mm512_i32scatter_pd(local_real, idx, x_real_new, 8);
+                    _mm512_i32scatter_pd(local_imag, idx, x_imag_new, 8);
+                    idx = _mm256_add_epi32(idx, inc);
                 }
+                #else
+                cpx param = isHighBlock ? cpx(gate.r11, gate.i11) : cpx(gate.r00, gate.i00);
+                #pragma ivdep
+                for (int j = 0; j < m; j++) {
+                    cpx new_val = cpx(local_real[j], local_imag[j]) * param;
+                    local_real[j] = new_val.real();
+                    local_imag[j] = new_val.imag();
+                }
+                #endif
             }
         }
     }
