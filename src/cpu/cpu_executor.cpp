@@ -72,18 +72,31 @@ case GateType::TYPE: // no break
 inline void fetch_data(value_t* local_real, value_t* local_imag, const cpx* deviceStateVec, int bias, idx_t relatedQubits) {
     int x;
     unsigned int y;
-    for (x = ((1 << LOCAL_QUBIT_SIZE) - 1), y = relatedQubits; x >= 0; x--, y = relatedQubits & (y-1)) {
-        local_real[x] = deviceStateVec[bias | y].real();
-        local_imag[x] = deviceStateVec[bias | y].imag();
+    idx_t mask = (1 << COALESCE_GLOBAL) - 1;
+    assert((relatedQubits & mask) == mask);
+    relatedQubits -= mask;
+    for (x = (1 << LOCAL_QUBIT_SIZE) - 1 - mask, y = relatedQubits; x >= 0; x -= (1 << COALESCE_GLOBAL), y = relatedQubits & (y-1)) {
+        #pragma ivdep
+        for (int i = 0; i < (1 << COALESCE_GLOBAL); i++) {
+            local_real[x + i] = deviceStateVec[(bias | y) + i].real();
+            local_imag[x + i] = deviceStateVec[(bias | y) + i].imag();
+            // printf("fetch %d <- %d\n", x + i, (bias | y) + i);
+        }
     }
 }
 
 inline void save_data(cpx* deviceStateVec, const value_t* local_real, const value_t* local_imag, int bias, idx_t relatedQubits) {
     int x;
     unsigned int y;
-    for (x = ((1 << LOCAL_QUBIT_SIZE) - 1), y = relatedQubits; x >= 0; x--, y = relatedQubits & (y-1)) {
-        deviceStateVec[bias | y].real(local_real[x]);
-        deviceStateVec[bias | y].imag(local_imag[x]);
+    idx_t mask = (1 << COALESCE_GLOBAL) - 1;
+    assert((relatedQubits & mask) == mask);
+    relatedQubits -= mask;
+    for (x = (1 << LOCAL_QUBIT_SIZE) - 1 - mask, y = relatedQubits; x >= 0; x -= (1 << COALESCE_GLOBAL), y = relatedQubits & (y-1)) {
+        #pragma ivdep
+        for (int i = 0; i < (1 << COALESCE_GLOBAL); i++) {
+            deviceStateVec[(bias | y) + i].real(local_real[x + i]);
+            deviceStateVec[(bias | y) + i].imag(local_imag[x + i]);
+        }
     }
 }
 
