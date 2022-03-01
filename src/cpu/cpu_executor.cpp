@@ -360,12 +360,11 @@ inline void apply_gate_group(value_t* local_real, value_t* local_imag, int numGa
                 assert(hostGates[i].type == GateType::CZ || hostGates[i].type == GateType::CU1 || hostGates[i].type == GateType::CRZ);
                 bool isHighBlock = (blockID >> targetQubit) & 1;
                 int m = 1 << (LOCAL_QUBIT_SIZE - 1);
-                int mask_inner = (1 << (LOCAL_QUBIT_SIZE - 1)) - (1 << controlQubit);
                 if (!isHighBlock){
                     if (hostGates[i].type == GateType::CRZ) {
                         #ifdef USE_AVX512
-                        __m256i mask_inner = _mm256_set1_epi32((1 << (LOCAL_QUBIT_SIZE - 2)) - (1 << controlQubit));
-                        __m256i ctr_flag = _mm256_set1_epi32(1 << gate.encodeQubit);
+                        __m256i mask_inner = _mm256_set1_epi32((1 << (LOCAL_QUBIT_SIZE - 1)) - (1 << controlQubit));
+                        __m256i ctr_flag = _mm256_set1_epi32(1 << controlQubit);
                         __m256i idx = _mm256_set_epi32(0, 1, 2, 3, 4, 5, 6, 7);
                         const __m256i inc = _mm256_set1_epi32(8);
                         for (int j = 0; j < m; j += 8) {
@@ -382,6 +381,7 @@ inline void apply_gate_group(value_t* local_real, value_t* local_imag, int numGa
                             idx = _mm256_add_epi32(idx, inc);
                         }
                         #else
+                        int mask_inner = (1 << (LOCAL_QUBIT_SIZE - 1)) - (1 << controlQubit);
                         #pragma ivdep
                         for (int j = 0; j < m; j++) {
                             int x = j + (j & mask_inner) + (1 << controlQubit);
@@ -393,8 +393,8 @@ inline void apply_gate_group(value_t* local_real, value_t* local_imag, int numGa
                     }
                 } else {
                     #ifdef USE_AVX512
-                    __m256i mask_inner = _mm256_set1_epi32((1 << (LOCAL_QUBIT_SIZE - 2)) - (1 << controlQubit));
-                    __m256i ctr_flag = _mm256_set1_epi32(1 << gate.encodeQubit);
+                    __m256i mask_inner = _mm256_set1_epi32((1 << (LOCAL_QUBIT_SIZE - 1)) - (1 << controlQubit));
+                    __m256i ctr_flag = _mm256_set1_epi32(1 << controlQubit);
                     __m256i idx = _mm256_set_epi32(0, 1, 2, 3, 4, 5, 6, 7);
                     const __m256i inc = _mm256_set1_epi32(8);
                     for (int j = 0; j < m; j += 8) {
@@ -411,6 +411,7 @@ inline void apply_gate_group(value_t* local_real, value_t* local_imag, int numGa
                         idx = _mm256_add_epi32(idx, inc);
                     }
                     #else
+                    int mask_inner = (1 << (LOCAL_QUBIT_SIZE - 1)) - (1 << controlQubit);
                     #pragma ivdep
                     for (int j = 0; j < m; j++) {
                         int x = j + (j & mask_inner) + (1 << controlQubit);
