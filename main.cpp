@@ -230,7 +230,7 @@ std::unique_ptr<Circuit> parse_circuit(const std::string &filename) {
                 assert(gate.second.size() == 1);
                 fscanf(f, "%s", buffer);
                 auto qid = parse_qid(buffer);
-                assert(qid.size() == 1);
+                assert(qid.size() == 2);
                 c->addGate(Gate::RZZ(qid[0], qid[1], gate.second[0]));
                 // printf("rzz %d %d %f\n", qid[0], qid[1], gate.second[0]);
             } else {
