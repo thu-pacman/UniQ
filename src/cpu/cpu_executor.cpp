@@ -100,6 +100,66 @@ inline void apply_gate_group(value_t* local_real, value_t* local_imag, int numGa
             int m = 1 << (LOCAL_QUBIT_SIZE - 2);
             int low_bit = std::min((int) gate.encodeQubit, targetQubit);
             int high_bit = std::max((int) gate.encodeQubit, targetQubit);
+            #ifdef USE_AVX512
+            __m256i mask_inner = _mm256_set1_epi32((1 << (LOCAL_QUBIT_SIZE - 2)) - (1 << low_bit));
+            __m256i mask_outer = _mm256_set1_epi32((1 << (LOCAL_QUBIT_SIZE - 1)) - (1 << high_bit));
+            __m256i ctr_flag = _mm256_set1_epi32(1 << gate.encodeQubit);
+            __m256i tar_flag = _mm256_set1_epi32(1 << targetQubit);
+            __m256i idx = _mm256_set_epi32(0, 1, 2, 3, 4, 5, 6, 7);
+            const __m256i inc = _mm256_set1_epi32(8);
+            for (int j = 0; j < m; j += 8) {
+                __m256i lo = _mm256_add_epi32(idx, _mm256_and_si256(idx, mask_inner));
+                lo = _mm256_add_epi32(lo, _mm256_and_si256(lo, mask_outer));
+                __m256i s00 = lo;
+                __m256i s01 = _mm256_add_epi32(s00, tar_flag);
+                __m256i s10 = _mm256_add_epi32(s00, ctr_flag);
+                __m256i s11 = _mm256_or_si256(s01, s10);
+
+                __m512d v00_real = _mm512_i32gather_pd(s00, local_real, 8);
+                __m512d v00_imag = _mm512_i32gather_pd(s00, local_imag, 8);
+                __m512d v11_real = _mm512_i32gather_pd(s11, local_real, 8);
+                __m512d v11_imag = _mm512_i32gather_pd(s11, local_imag, 8);
+                __m512d r00 = _mm512_set1_pd(gate.r00);
+                __m512d i00 = _mm512_set1_pd(gate.i00);
+                __m512d r11 = _mm512_set1_pd(gate.r11);
+                __m512d i11 = _mm512_set1_pd(gate.i11);
+                __m512d v00_real_new = _mm512_fnmadd_pd(v00_imag, i00, _mm512_mul_pd(v00_real, r00));
+                v00_real_new = _mm512_fnmadd_pd(v11_imag, i11, _mm512_fmadd_pd(v11_real, r11, v00_real_new));
+                __m512d v00_imag_new = _mm512_fmadd_pd(v00_imag, r00, _mm512_mul_pd(v00_real, i00));
+                v00_imag_new = _mm512_fmadd_pd(v11_imag, r11, _mm512_fmadd_pd(v11_real, i11, v00_imag_new));
+                _mm512_i32scatter_pd(local_real, s00, v00_real_new, 8);
+                _mm512_i32scatter_pd(local_imag, s00, v00_imag_new, 8);
+                __m512d v11_real_new = _mm512_fnmadd_pd(v11_imag, i00, _mm512_mul_pd(v11_real, r00));
+                v11_real_new = _mm512_fnmadd_pd(v00_imag, i11, _mm512_fmadd_pd(v00_real, r11, v11_real_new));
+                __m512d v11_imag_new = _mm512_fmadd_pd(v11_imag, r00, _mm512_mul_pd(v11_real, i00));
+                v11_imag_new = _mm512_fmadd_pd(v00_imag, r11, _mm512_fmadd_pd(v00_real, i11, v11_imag_new));
+                _mm512_i32scatter_pd(local_real, s11, v11_real_new, 8);
+                _mm512_i32scatter_pd(local_imag, s11, v11_imag_new, 8);
+
+                __m512d v01_real = _mm512_i32gather_pd(s01, local_real, 8);
+                __m512d v01_imag = _mm512_i32gather_pd(s01, local_imag, 8);
+                __m512d v10_real = _mm512_i32gather_pd(s10, local_real, 8);
+                __m512d v10_imag = _mm512_i32gather_pd(s10, local_imag, 8);
+                __m512d r01 = _mm512_set1_pd(gate.r01);
+                __m512d i01 = _mm512_set1_pd(gate.i01);
+                __m512d r10 = _mm512_set1_pd(gate.r10);
+                __m512d i10 = _mm512_set1_pd(gate.i10);
+                __m512d v01_real_new = _mm512_fnmadd_pd(v01_imag, i01, _mm512_mul_pd(v01_real, r01));
+                v01_real_new = _mm512_fnmadd_pd(v10_imag, i10, _mm512_fmadd_pd(v10_real, r10, v01_real_new));
+                __m512d v01_imag_new = _mm512_fmadd_pd(v01_imag, r01, _mm512_mul_pd(v01_real, i01));
+                v01_imag_new = _mm512_fmadd_pd(v10_imag, r10, _mm512_fmadd_pd(v10_real, i10, v01_imag_new));
+                _mm512_i32scatter_pd(local_real, s01, v01_real_new, 8);
+                _mm512_i32scatter_pd(local_imag, s01, v01_imag_new, 8);
+                __m512d v10_real_new = _mm512_fnmadd_pd(v10_imag, i01, _mm512_mul_pd(v10_real, r01));
+                v10_real_new = _mm512_fnmadd_pd(v01_imag, i10, _mm512_fmadd_pd(v01_real, r10, v10_real_new));
+                __m512d v10_imag_new = _mm512_fmadd_pd(v10_imag, r01, _mm512_mul_pd(v10_real, i01));
+                v10_imag_new = _mm512_fmadd_pd(v01_imag, r10, _mm512_fmadd_pd(v01_real, i10, v10_imag_new));
+                _mm512_i32scatter_pd(local_real, s10, v10_real_new, 8);
+                _mm512_i32scatter_pd(local_imag, s10, v10_imag_new, 8);
+
+                idx = _mm256_add_epi32(idx, inc);
+            }
+            #else
             int mask_inner = (1 << (LOCAL_QUBIT_SIZE - 2)) - (1 << low_bit);
             int mask_outer = (1 << (LOCAL_QUBIT_SIZE - 1)) - (1 << high_bit);
             for (int j = 0; j < m; j++) {
@@ -126,6 +186,7 @@ inline void apply_gate_group(value_t* local_real, value_t* local_imag, int numGa
                 local_real[s10] = n10.real();
                 local_imag[s10] = n10.imag();
             }
+            #endif
         } else if (!controlIsGlobal) {
             if (!targetIsGlobal) {
                 int m = 1 << (LOCAL_QUBIT_SIZE - 2);
