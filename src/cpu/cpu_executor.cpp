@@ -652,13 +652,78 @@ void CpuExecutor::allBarrier() {
 #endif
 }
 
+void CpuExecutor::inplaceAll2All(int commSize, std::vector<int> comm, const State& newState) {
+    int numLocalQubits = numQubits - MyGlobalVars::bit;
+    idx_t oldGlobals = 0;
+    for (int i = numLocalQubits; i < numQubits; i++)
+        oldGlobals |= 1ll << state.layout[i];
+    idx_t newGlobals = 0;
+    for (int i = numLocalQubits; i < numQubits; i++)
+        newGlobals |= 1ll << newState.layout[i];
+    
+    idx_t globalMask = 0;
+    idx_t localMasks[commSize];
+    idx_t localMask = 0;
+    for (int i = numLocalQubits; i < numQubits; i++)
+        if (newState.layout[i] != state.layout[i]) {
+            int x = state.layout[i];
+            globalMask |= 1ll << i;
+            localMask |= 1ll << newState.pos[x];
+        }
+
+    for (idx_t i = commSize-1, msk = localMask; i >= 0; i--, msk = localMask & (msk - 1)) {
+        localMasks[i] = msk;
+    }
+
+    int sliceSize = INPLACE;
+    while (sliceSize < MAX_SLICE && !(localMask >> sliceSize & 1))
+        sliceSize ++;
+
+    cpx* tmpBuffer[MyGlobalVars::localGPUs];
+    size_t tmpStart = 1ll << numLocalQubits;
+    for (int i = 0; i < MyGlobalVars::localGPUs; i++)
+        tmpBuffer[i] = deviceStateVec[i] + tmpStart;
+
+    for (idx_t iter = 0; iter < (1ll << numLocalQubits); iter += (1 << sliceSize)) {
+        if (iter & localMask) continue;
+        for (int xr = 1; xr < commSize; xr++) {
+            for (int a = 0; a < MyGlobalVars::numGPUs; a++) {
+                // the (a%commSize)-th GPU in the a/commSize comm_world (comm[a]) ->
+                // the (a%commSize)^xr -th GPU in the same comm_world comm[a^xr]
+                int b = a ^ xr;
+                if (comm[a] / MyGlobalVars::localGPUs != MyMPI::rank)
+                    continue;
+                idx_t srcBias = iter + localMasks[b % commSize];
+#if USE_MPI
+                int comm_a = comm[a] %  MyGlobalVars::localGPUs;
+                checkMPIErrors(MPI_Sendrecv(
+                    deviceStateVec[comm_a] + srcBias, 1 << sliceSize, MPI_Complex, comm[b], 0,
+                    tmpBuffer[comm_a], 1 << sliceSize, MPI_Complex, comm[b], MPI_ANY_TAG,
+                    MPI_COMM_WORLD, MPI_STATUS_IGNORE
+                ))
+#else
+                UNIMPLEMENTED();
+#endif
+            }
+            // copy from tmp_buffer to dst
+            for (int a = 0; a < MyGlobalVars::numGPUs; a++) {
+                int b = a ^ xr;
+                if (comm[b] / MyGlobalVars::localGPUs != MyMPI::rank)
+                    continue;
+                idx_t dstBias = iter + localMasks[a % commSize];
+                int comm_b = comm[b] % MyGlobalVars::localGPUs;
+                memcpy(deviceStateVec[comm_b] + dstBias, tmpBuffer[comm_b], (sizeof(cpx) << sliceSize));
+            }
+        }
+    }
+}
 
 void CpuExecutor::dm_transpose()  { UNIMPLEMENTED(); }
-void CpuExecutor::inplaceAll2All(int commSize, std::vector<int> comm, const State& newState) { UNIMPLEMENTED(); }
 void CpuExecutor::launchPerGateGroupSliced(std::vector<Gate>& gates, KernelGate hostGates[], idx_t relatedQubits, int numLocalQubits, int sliceID) { UNIMPLEMENTED(); }
 void CpuExecutor::launchBlasGroup(GateGroup& gg, int numLocalQubits) { UNIMPLEMENTED(); }
 void CpuExecutor::launchBlasGroupSliced(GateGroup& gg, int numLocalQubits, int sliceID) { UNIMPLEMENTED(); }
 void CpuExecutor::sliceBarrier(int sliceID) { UNIMPLEMENTED(); }
 void CpuExecutor::eventBarrier() { UNIMPLEMENTED(); }
 void CpuExecutor::eventBarrierAll() { checkMPIErrors(MPI_Barrier(MPI_COMM_WORLD)); }
+
 }
