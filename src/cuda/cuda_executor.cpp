@@ -76,7 +76,7 @@ void CudaExecutor::inplaceAll2All(int commSize, std::vector<int> comm, const Sta
 #endif
             for (int a = 0; a < MyGlobalVars::numGPUs; a++) {
                 // the (a%commSize)-th GPU in the a/commSize comm_world (comm[a]) ->
-                // the (a%commSize)^xr -th GPU in the same comm_world comm[a^xr]
+                // the (a%commSize)^xr-th GPU in the same comm_world comm[a^xr]
                 int b = a ^ xr;
                 if (comm[a] / MyGlobalVars::localGPUs != MyMPI::rank)
                     continue;

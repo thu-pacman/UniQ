@@ -22,6 +22,30 @@ void CpuExecutor::all2all(int commSize, std::vector<int> comm) {
     partID.resize(numSlice * MyGlobalVars::localGPUs);
     peer.resize(numSlice * MyGlobalVars::localGPUs);
     int sliceID = 0;
+#ifdef ALL_TO_ALL
+    int newRank = -1;
+    for (int i = 0; i < MyGlobalVars::numGPUs; i++) {
+        if (comm[i] == MyMPI::rank) {
+            newRank = i;
+            break;
+        }
+    }
+    MPI_Group world_group, new_group;
+    checkMPIErrors(MPI_Comm_group(MPI_COMM_WORLD, &world_group));
+    int ranks[commSize];
+    for (int i = 0; i < commSize; i++)
+        ranks[i] = (newRank - newRank % commSize) + i;
+    checkMPIErrors(MPI_Group_incl(world_group, commSize, ranks, &new_group));
+    MPI_Comm new_communicator;
+    MPI_Comm_create(MPI_COMM_WORLD, new_group, &new_communicator);
+
+    checkMPIErrors(MPI_Alltoall(
+        deviceBuffer[0], partSize, MPI_Complex,
+        deviceStateVec[0], partSize, MPI_Complex,
+        new_communicator
+    ))
+
+#else
     for (int xr = 0; xr < commSize; xr++) {
         for (int p = 0; p < numPart; p++) {
             for (int a = 0; a < MyGlobalVars::numGPUs; a++) {
@@ -59,6 +83,7 @@ void CpuExecutor::all2all(int commSize, std::vector<int> comm) {
             sliceID++;
         }
     }
+#endif
 #ifndef ENABLE_OVERLAP
     this->eventBarrierAll();
 #endif

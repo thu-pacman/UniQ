@@ -20,6 +20,7 @@ option(DISABLE_ASSERT "Use assert in cuda runtime" ON)
 option(USE_DOUBLE "double or float" ON)
 option(ENABLE_OVERLAP "overlap" ON)
 option(USE_MPI "use mpi" OFF)
+option(USE_ALL_TO_ALL "use all to all for communication" OFF)
 
 if (MODE STREQUAL "statevec")
     add_definitions(-DMODE=0)
@@ -126,6 +127,10 @@ if (USE_MPI)
 else()
     add_definitions(-DUSE_MPI=0)
 endif(USE_MPI)
+
+if (USE_ALL_TO_ALL)
+    add_definitions(-DALL_TO_ALL)
+endif(USE_ALL_TO_ALL)
 
 set(COALESCE "3" CACHE STRING "coalescing size")
 MESSAGE(STATUS "coalesce = ${COALESCE}")
