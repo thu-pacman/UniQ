@@ -39,20 +39,6 @@ const int REDUCE_BLOCK_DEP = 6; // 1 << REDUCE_BLOCK_DEP blocks in final reducti
 #define CC_GATE_END }
 
 
-
-template <unsigned int blockSize>
-__global__ void CCXKernel(cuCpx* a, int numQubit_, int c1, int c2, int targetQubit) {
-    CC_GATE_BEGIN {
-        value_t real = a[lo].x;
-        value_t imag = a[lo].y;
-        a[lo].x = a[hi].x;
-        a[lo].y = a[hi].y;
-        a[hi].x = real;
-        a[hi].y = imag;
-    } CC_GATE_END
-}
-
-
 template <unsigned int blockSize>
 __global__ void CNOTKernel(cuCpx* a, int numQubit_, int controlQubit, int targetQubit) {
     CONTROL_GATE_BEGIN {
@@ -322,10 +308,6 @@ void kernelExecSimple(cpx* deviceStateVec_, int numQubits, const std::vector<Gat
     int nVec = 1 << numQubit_;
     for (auto& gate: gates) {
         switch (gate.type) {
-            case GateType::CCX: {
-                CCXKernel<1<<THREAD_DEP><<<nVec>>(SINGLE_SIZE_DEP + THREAD_DEP), 1<<THREAD_DEP>>>(deviceStateVec, numQubit_, gate.controlQubit, gate.encodeQubit, gate.targetQubit);
-                break;
-            }
             case GateType::CNOT: {
                 CNOTKernel<1<<THREAD_DEP><<<nVec>>(SINGLE_SIZE_DEP + THREAD_DEP), 1<<THREAD_DEP>>>(deviceStateVec, numQubit_, gate.controlQubit, gate.targetQubit);
                 break;

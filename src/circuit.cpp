@@ -348,7 +348,7 @@ void hczh2cx(std::vector<Gate> &gates, int numQubits, bool erased[]) {
     //   .       .
     //   |       |
     // H . H =>  X
-    for (int i = 0; i < gates.size(); i++) {
+    for (int i = 0; i < (int) gates.size(); i++) {
         if (erased[i]) continue;
         Gate& gate = gates[i];
         if (gate.type == GateType::CZ) {
@@ -371,7 +371,7 @@ void hczh2cx(std::vector<Gate> &gates, int numQubits, bool erased[]) {
                 }
                 if (gates[j].controlQubit == gate.controlQubit) break;
             }
-            for (int j = i + 1; j < gates.size(); j++) {
+            for (int j = i + 1; j < (int) gates.size(); j++) {
                 if (gates[j].targetQubit == gate.targetQubit) {
                     if (gates[j].type == GateType::H && !erased[j]) {
                         h_high_tar = j;
@@ -380,7 +380,7 @@ void hczh2cx(std::vector<Gate> &gates, int numQubits, bool erased[]) {
                 }
                 if (gates[j].controlQubit == gate.targetQubit) break;
             }
-            for (int j = i + 1; j < gates.size(); j++) {
+            for (int j = i + 1; j < (int) gates.size(); j++) {
                 if (gates[j].targetQubit == gate.controlQubit) {
                     if (gates[j].type == GateType::H && !erased[j]) {
                         h_high_ctr = j;
@@ -413,7 +413,7 @@ void hczh2cx(std::vector<Gate> &gates, int numQubits, bool erased[]) {
 void single_qubit_fusion(std::vector<Gate> &gates, int numQubits, bool erased[]) {
     int lastGate[numQubits];
     memset(lastGate, -1, sizeof(int) * numQubits);
-    for (int i = 0; i < gates.size(); i++) {
+    for (int i = 0; i < (int) gates.size(); i++) {
         if (erased[i]) continue;
         Gate& gate = gates[i];
         int old_id = lastGate[gate.targetQubit];
@@ -458,7 +458,7 @@ void Circuit::transform() {
     hczh2cx(this->gates, numQubits, erased);
     single_qubit_fusion(this->gates, numQubits, erased);
     std::vector<Gate> new_gates;
-    for (int i = 0; i < gates.size(); i++)
+    for (int i = 0; i < (int) gates.size(); i++)
         if (!erased[i])
             new_gates.push_back(gates[i]);
     gates = new_gates;

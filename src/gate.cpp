@@ -397,14 +397,6 @@ Gate Gate::random(int lo, int hi) {
 }
 
 Gate Gate::random(int lo, int hi, GateType type) {
-    auto gen_c2_id = [lo, hi](int &t, int &c1, int &c2) {
-        assert(hi - lo >= 3);
-        do {
-            c2 = rand() % (hi - lo) + lo;
-            c1 = rand() % (hi - lo) + lo;
-            t = rand() % (hi - lo) + lo;
-        } while (c2 == c1 || c2 == t || c1 == t);
-    };
     auto gen_c1_id = [lo, hi](int &t, int &c1) {
         assert(hi - lo >= 2);
         do {

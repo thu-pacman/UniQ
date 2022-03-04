@@ -112,7 +112,7 @@ int get_bit(int n) {
 }
 
 idx_t to_bitmap(std::vector<int> qubits) {
-    idx_t ret;
+    idx_t ret = 0;
     for (auto& x: qubits) ret |= 1ll << x;
     return ret;
 }

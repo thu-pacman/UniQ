@@ -218,29 +218,6 @@ __device__ void doCompute(int numGates, int* loArr, int* shiftAt) {
         int targetQubit = deviceGates[i].targetQubit;
         char controlIsGlobal = deviceGates[i].controlIsGlobal;
         char targetIsGlobal = deviceGates[i].targetIsGlobal;
-        if (deviceGates[i].type == GateType::CCX) {
-            int encodeQubit = deviceGates[i].encodeQubit;
-            int control2IsGlobal = deviceGates[i].control2IsGlobal;
-            if (!control2IsGlobal) {
-                int m = 1 << (LOCAL_QUBIT_SIZE - 1);
-                assert(!controlIsGlobal && !targetIsGlobal);
-                assert(deviceGates[i].type == GateType::CCX);
-                int maskTarget = (1 << targetQubit) - 1;
-                for (int j = threadIdx.x; j < m; j += blockSize) {
-                    int lo = ((j >> targetQubit) << (targetQubit + 1)) | (j & maskTarget);
-                    if (!(lo >> controlQubit & 1) || !(lo >> encodeQubit & 1))
-                        continue;
-                    int hi = lo | (1 << targetQubit);
-                    lo ^= lo >> 3 & 7;
-                    hi ^= hi >> 3 & 7;
-                    XSingle(lo, hi);
-                }
-                continue;
-            }
-            if (control2IsGlobal == 1 && !((blockIdx.x >> encodeQubit) & 1)) {
-                continue;
-            }
-        }
         if (!controlIsGlobal) {
             if (!targetIsGlobal) {
                 int lo = loArr[(controlQubit * 10 + targetQubit) << THREAD_DEP | threadIdx.x];
@@ -252,7 +229,6 @@ __device__ void doCompute(int numGates, int* loArr, int* shiftAt) {
                         add = 128;
                 }
                 switch (deviceGates[i].type) {
-                    FOLLOW_NEXT(CCX)
                     CASE_CONTROL(CNOT, XSingle(lo, hi))
                     CASE_CONTROL(CY, YSingle(lo, hi))
                     CASE_CONTROL(CZ, ZHi(hi))
@@ -329,14 +305,13 @@ __device__ void doCompute(int numGates, int* loArr, int* shiftAt) {
                     FOLLOW_NEXT(GOC)
                     FOLLOW_NEXT(CU1)
                     CASE_SINGLE(U1, U1Hi(hi, make_cuComplex(deviceGates[i].r11, deviceGates[i].i11)))
+                    FOLLOW_NEXT(CU)
                     FOLLOW_NEXT(U2)
                     FOLLOW_NEXT(U)
-                    FOLLOW_NEXT(CU)
                     CASE_SINGLE(U3, USingle(lo, hi, make_cuComplex(deviceGates[i].r00, deviceGates[i].i00), make_cuComplex(deviceGates[i].r01, deviceGates[i].i01), make_cuComplex(deviceGates[i].r10, deviceGates[i].i10), make_cuComplex(deviceGates[i].r11, deviceGates[i].i11)));
                     CASE_SINGLE(H, HSingle(lo, hi))
-                    FOLLOW_NEXT(X)
                     FOLLOW_NEXT(CNOT)
-                    CASE_SINGLE(CCX, XSingle(lo, hi))
+                    CASE_SINGLE(X, XSingle(lo, hi))
                     FOLLOW_NEXT(Y)
                     CASE_SINGLE(CY, YSingle(lo, hi))
                     FOLLOW_NEXT(Z)
