@@ -218,7 +218,75 @@ __device__ void doCompute(int numGates, int* loArr, int* shiftAt) {
         int targetQubit = deviceGates[i].targetQubit;
         char controlIsGlobal = deviceGates[i].controlIsGlobal;
         char targetIsGlobal = deviceGates[i].targetIsGlobal;
-        if (!controlIsGlobal) {
+        if (deviceGates[i].controlQubit == -3) { // twoQubitGate
+            auto& gate = deviceGates[i];
+            controlQubit = gate.encodeQubit;
+            if (!controlIsGlobal && !targetIsGlobal) {
+                int m = 1 << (LOCAL_QUBIT_SIZE - 2);
+                int smallQubit = controlQubit > targetQubit ? targetQubit : controlQubit;
+                int largeQubit = controlQubit > targetQubit ? controlQubit : targetQubit;
+                int maskSmall = (1 << smallQubit) - 1;
+                int maskLarge = (1 << largeQubit) - 1;
+                for (int j = threadIdx.x; j < m; j += blockSize) {
+                    int s00 = ((j >> smallQubit) << (smallQubit + 1)) | (j & maskSmall);
+                    s00 = ((s00 >> largeQubit) << (largeQubit + 1)) | (s00 & maskLarge);
+                    int s01 = s00 | (1 << gate.encodeQubit);
+                    int s10 = s00 | (1 << gate.targetQubit);
+                    int s11 = s01 | s10;
+                    s00 = s00 ^ (s00 >> 3 & 7);
+                    s01 = s01 ^ (s01 >> 3 & 7);
+                    s10 = s10 ^ (s10 >> 3 & 7);
+                    s11 = s11 ^ (s11 >> 3 & 7);
+                    cuCpx val_00 = shm[s00];
+                    cuCpx val_01 = shm[s01];
+                    cuCpx val_10 = shm[s10];
+                    cuCpx val_11 = shm[s11];
+
+                    shm[s00] = make_cuComplex(
+                        COMPLEX_MULTIPLY_REAL(val_00, make_cuComplex(gate.r00, gate.i00)) + COMPLEX_MULTIPLY_REAL(val_11, make_cuComplex(gate.r11, gate.i11)),
+                        COMPLEX_MULTIPLY_IMAG(val_00, make_cuComplex(gate.r00, gate.i00)) + COMPLEX_MULTIPLY_IMAG(val_11, make_cuComplex(gate.r11, gate.i11))
+                    );
+                    shm[s01] =  make_cuComplex(
+                        COMPLEX_MULTIPLY_REAL(val_01, make_cuComplex(gate.r01, gate.i01)) + COMPLEX_MULTIPLY_REAL(val_10, make_cuComplex(gate.r10, gate.i10)),
+                        COMPLEX_MULTIPLY_IMAG(val_01, make_cuComplex(gate.r01, gate.i01)) + COMPLEX_MULTIPLY_IMAG(val_10, make_cuComplex(gate.r10, gate.i10))
+                    );
+                    shm[s10] =  make_cuComplex(
+                        COMPLEX_MULTIPLY_REAL(val_01, make_cuComplex(gate.r10, gate.i10)) + COMPLEX_MULTIPLY_REAL(val_10, make_cuComplex(gate.r01, gate.i01)),
+                        COMPLEX_MULTIPLY_IMAG(val_01, make_cuComplex(gate.r10, gate.i10)) + COMPLEX_MULTIPLY_IMAG(val_10, make_cuComplex(gate.r01, gate.i01))
+                    );
+                    shm[s11] =  make_cuComplex(
+                        COMPLEX_MULTIPLY_REAL(val_00, make_cuComplex(gate.r11, gate.i11)) + COMPLEX_MULTIPLY_REAL(val_11, make_cuComplex(gate.r00, gate.i00)),
+                        COMPLEX_MULTIPLY_IMAG(val_00, make_cuComplex(gate.r11, gate.i11)) + COMPLEX_MULTIPLY_IMAG(val_11, make_cuComplex(gate.r00, gate.i00))
+                    );
+                }
+            } else if (controlIsGlobal && !targetIsGlobal) {
+                cuCpx p0, p1;
+                bool isHighBlock = (blockIdx.x >> controlQubit) & 1;
+                if (!isHighBlock) {
+                    p0 = make_cuComplex(gate.r00, gate.i00); p1 = make_cuComplex(gate.r01, gate.i01);
+                } else {
+                    p0 = make_cuComplex(gate.r01, gate.i01); p1 = make_cuComplex(gate.r00, gate.i00);
+                }
+                int lo = loArr[(targetQubit * 11) << THREAD_DEP | threadIdx.x];
+                int hi = lo ^ (1 << targetQubit) ^ (((1 << targetQubit) >> 3) & 7);
+                int add[4];
+                if (targetQubit < 8) {
+                    add[0] = add[1] = add[2] = 256;
+                } else if (targetQubit == 8) {
+                    add[0] = 128; add[1] = 384; add[2] = 128;
+                } else { // targetQubit == 9
+                    add[0] = add[1] = add[2] = 128;
+                }
+                for (int task = 0; task < 4; task++) {
+                    U1Hi(lo, p0);
+                    U1Hi(hi, p1);
+                    lo += add[task]; hi += add[task];
+                }
+            } else {
+                // not implemented
+                assert(false);
+            }
+        } else if (!controlIsGlobal) {
             if (!targetIsGlobal) {
                 int lo = loArr[(controlQubit * 10 + targetQubit) << THREAD_DEP | threadIdx.x];
                 int hi = lo ^ (1 << targetQubit) ^ (((1 << targetQubit) >> 3) & 7);
