@@ -192,7 +192,7 @@ std::unique_ptr<Circuit> parse_circuit(const std::string &filename) {
                 c->addGate(Gate::U1(qid[0], gate.second[0]));
                 // printf("u1 %d %f\n", qid[0], gate.second[0]);
             } else if (gate.first == "u2") {
-                assert(gate.second.size() == 1);
+                assert(gate.second.size() == 2);
                 fscanf(f, "%s", buffer);
                 auto qid = parse_qid(buffer);
                 assert(qid.size() == 1);
