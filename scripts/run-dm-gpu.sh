@@ -1,3 +1,3 @@
 #!/bin/bash
-source ../scripts/init.sh -DSHOW_SUMMARY=on -DSHOW_SCHEDULE=on -DMICRO_BENCH=on -DUSE_DOUBLE=on -DDISABLE_ASSERT=off -DENABLE_OVERLAP=off -DMEASURE_STAGE=off -DEVALUATOR_PREPROCESS=off -DUSE_MPI=off -DMAT=7 -DGPU_BACKEND=group -DMODE=densityerr
-CUDA_VISIBLE_DEVICES=0 ./main xxx # ../tests/input-extend/qaoa_26.qasm
+source ../scripts/init.sh -DSHOW_SUMMARY=on -DSHOW_SCHEDULE=on -DMICRO_BENCH=on -DUSE_DOUBLE=on -DDISABLE_ASSERT=off -DENABLE_OVERLAP=off -DMEASURE_STAGE=off -DEVALUATOR_PREPROCESS=off -DUSE_MPI=off -DMAT=7 -DGPU_BACKEND=group -DLOCAL_QUBIT_SIZE=5 -DCOALESCE=2 -DMODE=densityerr
+CUDA_VISIBLE_DEVICES=4,5,6,7 ./main ../tests/input-old/h_13.qasm

@@ -100,6 +100,18 @@ void Schedule::dump(int numQubits) {
                         for (int j = 1; j < L; j++) printf(" ");
                     }
                 }
+                if (gate.controlErrors.size() > 0 || gate.targetErrors.size() > 0) {
+                    printf("ERR: ");
+                    if (gate.targetErrors.size() > 0) {
+                        for (auto err: gate.targetErrors)
+                            printf("%s ", Gate::get_name(err.type).c_str());
+                    }
+                    if (gate.controlErrors.size() > 0) {
+                        printf("| ");
+                        for (auto err: gate.controlErrors)
+                            printf("%s ", Gate::get_name(err.type).c_str());
+                    }
+                }
                 printf("\n");
             }
             printf("\n");
@@ -130,6 +142,19 @@ void Schedule::dump(int numQubits) {
                         for (int j = 1; j < L; j++) printf(" ");
                     }
                 }
+                if (gate.controlErrors.size() > 0 || gate.targetErrors.size() > 0) {
+                    printf("ERR: ");
+                    if (gate.targetErrors.size() > 0) {
+                        for (auto err: gate.targetErrors)
+                            printf("%s ", Gate::get_name(err.type).c_str());
+                    }
+                    if (gate.controlErrors.size() > 0) {
+                        printf("| ");
+                        for (auto err: gate.controlErrors)
+                            printf("%s ", Gate::get_name(err.type).c_str());
+                    }
+                }
+                printf("\n");
                 printf("\n");
             }
             printf("\n");
@@ -414,8 +439,8 @@ State GateGroup::initState(const State& oldState, int numLocalQubits) {
     UNREACHABLE();
 }
 
-State LocalGroup::initState(const State& oldState, int numQubits, const std::vector<int>& newGlobals, idx_t overlapGlobals, idx_t overlapRelated) {
-    int numLocalQubits = numQubits - MyGlobalVars::bit;
+State LocalGroup::initState(const State& oldState, int numQubits, const std::vector<int>& newGlobals, idx_t overlapGlobals, idx_t overlapRelated, int globalBit) {
+    int numLocalQubits = numQubits - globalBit;
     auto pos = oldState.pos, layout = oldState.layout;
     int overlapCnt = bitCount(overlapGlobals);
     cuttPerm = gen_perm_vector(numLocalQubits);
@@ -432,11 +457,11 @@ State LocalGroup::initState(const State& oldState, int numQubits, const std::vec
             }
         }
     }
-    for (int i = 0; i < MyGlobalVars::bit; i++)
+    for (int i = 0; i < globalBit; i++)
         if (!(overlapGlobals >> i & 1))
             newBuffer.push_back(newGlobals[i]);
-    assert(int(newBuffer.size()) == MyGlobalVars::bit);
-    for (int i = 0, c = numLocalQubits - MyGlobalVars::bit; i < MyGlobalVars::bit; i++, c++) {
+    assert(int(newBuffer.size()) == globalBit);
+    for (int i = 0, c = numLocalQubits - globalBit; i < globalBit; i++, c++) {
         if (layout[c] == newBuffer[i])
             continue;
         std::swap(cuttPerm[pos[newBuffer[i]]], cuttPerm[c]);
@@ -459,8 +484,8 @@ State LocalGroup::initState(const State& oldState, int numQubits, const std::vec
     // }
     // cuttPerm[0] = 0;
 
-    int c = numLocalQubits - MyGlobalVars::bit + overlapCnt;
-    for (int i = 0; i < MyGlobalVars::bit; i++) {
+    int c = numLocalQubits - globalBit + overlapCnt;
+    for (int i = 0; i < globalBit; i++) {
         if (overlapGlobals >> i & 1) continue;
         int a = i + numLocalQubits;
         int qa = layout[a], qc = layout[c];
@@ -474,6 +499,10 @@ State LocalGroup::initState(const State& oldState, int numQubits, const std::vec
     printf("------------------------------------------------------\n");
 #endif
     std::vector<std::pair<int, int>> newCommPair;
+#if MODE == 2
+    if (overlapGlobals > 0) printf("[warning] overlap global = %x, not verified\n", (int) overlapGlobals);
+    overlapGlobals = duplicate_bit(overlapGlobals);
+#endif
     for (int i = 0; i < MyGlobalVars::numGPUs; i++) {
         newCommPair.push_back(std::make_pair(i & overlapGlobals, i));
     }
@@ -483,13 +512,13 @@ State LocalGroup::initState(const State& oldState, int numQubits, const std::vec
         newComm.push_back(x.second);
     }
     a2aComm = newComm;
-    a2aCommSize = MyGlobalVars::numGPUs >> overlapCnt;
+    a2aCommSize = MyGlobalVars::numGPUs >> bitCount(overlapGlobals);
     auto newState = State(pos, layout);
     this->state = newState;
     return newState;
 }
 
-State LocalGroup::initStateInplace(const State& oldState, int numQubits, const std::vector<int>& newGlobals, idx_t overlapGlobals) {
+State LocalGroup::initStateInplace(const State& oldState, int numQubits, const std::vector<int>& newGlobals, idx_t overlapGlobals, int globalBit) {
     int numLocalQubits = numQubits - MyGlobalVars::bit;
     auto pos = oldState.pos, layout = oldState.layout;
     int overlapCnt = bitCount(overlapGlobals);

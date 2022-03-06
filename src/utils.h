@@ -53,6 +53,7 @@ const int BLAS_MAT_LIMIT = BLAS_MAT_LIMIT_DEFINED;
 const int COALESCE_GLOBAL = COALESCE_GLOBAL_DEFINED;
 const int MAX_GATE = 600;
 const int MIN_MAT_SIZE = MIN_MAT_SIZE_DEFINED;
+const int MAX_ERROR_LEN = MAX_ERROR_LEN_DEFINED;
 
 #define checkMPIErrors(stmt) {                          \
   int err = stmt;                                      \
@@ -94,3 +95,5 @@ bool operator < (const cpx& a, const cpx& b);
 int get_bit(int n);
 
 idx_t to_bitmap(std::vector<int> qubits);
+
+idx_t duplicate_bit(idx_t x);

@@ -8,12 +8,12 @@
 #include "logger.h"
 #include "evaluator.h"
 
-Compiler::Compiler(int numQubits, std::vector<Gate> inputGates):
-    numQubits(numQubits), localSize(numQubits - MyGlobalVars::bit), gates(inputGates) {}
+Compiler::Compiler(int numQubits, std::vector<Gate> inputGates, int globalBit_):
+    numQubits(numQubits), globalBit(globalBit_), localSize(numQubits - globalBit_), gates(inputGates) {}
 
 
 void Compiler::fillLocals(LocalGroup& lg) {
-    int numLocalQubits = numQubits - MyGlobalVars::bit;
+    int numLocalQubits = numQubits - globalBit;
     for (auto& gg: lg.fullGroups) {
         idx_t related = gg.relatedQubits;
         int numRelated = bitCount(related);
@@ -45,10 +45,10 @@ std::vector<std::pair<std::vector<Gate>, idx_t>> Compiler::moveToNext(LocalGroup
         std::reverse(gates.begin(), gates.end());
         assert(lg.fullGroups[i-1].relatedQubits != 0);
 #if GPU_BACKEND == 3
-        SimpleCompiler backCompiler(numQubits, numQubits - 2 * MyGlobalVars::bit, numQubits - 2 * MyGlobalVars::bit, gates,
+        SimpleCompiler backCompiler(numQubits, numQubits - 2 * globalBit, numQubits - 2 * globalBit, gates,
                                         false, lg.fullGroups[i-1].relatedQubits, lg.fullGroups[i].relatedQubits);
 #else
-        SimpleCompiler backCompiler(numQubits, numQubits - 2 * MyGlobalVars::bit, numQubits - 2 * MyGlobalVars::bit, gates,
+        SimpleCompiler backCompiler(numQubits, numQubits - 2 * globalBit, numQubits - 2 * globalBit, gates,
                                         true, lg.fullGroups[i-1].relatedQubits, lg.fullGroups[i].relatedQubits);
 #endif
         LocalGroup toRemove = backCompiler.run();
@@ -75,7 +75,7 @@ Schedule Compiler::run() {
     fillLocals(localGroup);
     Schedule schedule;
     State state(numQubits);
-    int numLocalQubits = numQubits - MyGlobalVars::bit;
+    int numLocalQubits = numQubits - globalBit;
     for (size_t id = 0; id < localGroup.fullGroups.size(); id++) {
         auto& gg = localGroup.fullGroups[id];
 
@@ -85,7 +85,7 @@ Schedule Compiler::run() {
                 newGlobals.push_back(i);
             }
         }
-        assert(int(newGlobals.size()) == MyGlobalVars::bit);
+        assert(int(newGlobals.size()) == globalBit);
         
         auto globalPos = [this, numLocalQubits](const std::vector<int>& layout, int x) {
             auto pos = std::find(layout.data() + numLocalQubits, layout.data() + numQubits, x);
@@ -124,9 +124,9 @@ Schedule Compiler::run() {
             state = lg.initFirstGroupState(state, numQubits, newGlobals);
         } else {
             if (INPLACE) {
-                state = lg.initStateInplace(state, numQubits, newGlobals, overlapGlobals);
+                state = lg.initStateInplace(state, numQubits, newGlobals, overlapGlobals, globalBit);
             } else {
-                state = lg.initState(state, numQubits, newGlobals, overlapGlobals, moveBack[id].second);
+                state = lg.initState(state, numQubits, newGlobals, overlapGlobals, moveBack[id].second, globalBit);
             }
 
         }
@@ -138,12 +138,12 @@ Schedule Compiler::run() {
             overlapBlasForbid = (~localGroup.fullGroups[id - 1].relatedQubits) & gg.relatedQubits;
             // printf("overlapBlasForbid %llx\n", overlapBlasForbid);
         }
-        AdvanceCompiler overlapCompiler(numQubits, overlapLocals, overlapBlasForbid, moveBack[id].first);
-        AdvanceCompiler fullCompiler(numQubits, gg.relatedQubits, 0, gg.gates);
+        AdvanceCompiler overlapCompiler(numQubits, overlapLocals, overlapBlasForbid, moveBack[id].first, globalBit);
+        AdvanceCompiler fullCompiler(numQubits, gg.relatedQubits, 0, gg.gates, globalBit);
         switch (GPU_BACKEND) {
             case 1: // no break;
             case 2: {
-                lg.overlapGroups = overlapCompiler.run(state, true, false, LOCAL_QUBIT_SIZE, BLAS_MAT_LIMIT, numLocalQubits - MyGlobalVars::bit).fullGroups;
+                lg.overlapGroups = overlapCompiler.run(state, true, false, LOCAL_QUBIT_SIZE, BLAS_MAT_LIMIT, numLocalQubits - globalBit).fullGroups;
                 lg.fullGroups = fullCompiler.run(state, true, false, LOCAL_QUBIT_SIZE, BLAS_MAT_LIMIT, numLocalQubits).fullGroups;
                 break;
             }
@@ -154,12 +154,12 @@ Schedule Compiler::run() {
                         UNIMPLEMENTED();
                     }
                 }
-                lg.overlapGroups = overlapCompiler.run(state, false, true, LOCAL_QUBIT_SIZE, BLAS_MAT_LIMIT, numLocalQubits - MyGlobalVars::bit).fullGroups;
+                lg.overlapGroups = overlapCompiler.run(state, false, true, LOCAL_QUBIT_SIZE, BLAS_MAT_LIMIT, numLocalQubits - globalBit).fullGroups;
                 lg.fullGroups = fullCompiler.run(state, false, true, LOCAL_QUBIT_SIZE, BLAS_MAT_LIMIT, numLocalQubits).fullGroups;
                 break;
             }
             case 4: {
-                lg.overlapGroups = overlapCompiler.run(state, true, true, LOCAL_QUBIT_SIZE, BLAS_MAT_LIMIT, numLocalQubits - MyGlobalVars::bit).fullGroups;
+                lg.overlapGroups = overlapCompiler.run(state, true, true, LOCAL_QUBIT_SIZE, BLAS_MAT_LIMIT, numLocalQubits - globalBit).fullGroups;
                 lg.fullGroups = fullCompiler.run(state, true, true, LOCAL_QUBIT_SIZE, BLAS_MAT_LIMIT, numLocalQubits).fullGroups;
                 break;
             }
@@ -181,8 +181,8 @@ OneLayerCompiler<MAX_GATES>::OneLayerCompiler(int numQubits, const std::vector<G
 SimpleCompiler::SimpleCompiler(int numQubits, int localSize, idx_t localQubits, const std::vector<Gate>& inputGates, bool enableGlobal, idx_t whiteList, idx_t required):
     OneLayerCompiler<2048>(numQubits, inputGates), localSize(localSize), localQubits(localQubits), enableGlobal(enableGlobal), whiteList(whiteList), required(required) {}
 
-AdvanceCompiler::AdvanceCompiler(int numQubits, idx_t localQubits, idx_t blasForbid, std::vector<Gate> inputGates):
-    OneLayerCompiler<512>(numQubits, inputGates), localQubits(localQubits), blasForbid(blasForbid) {}
+AdvanceCompiler::AdvanceCompiler(int numQubits, idx_t localQubits, idx_t blasForbid, std::vector<Gate> inputGates, int globalBit_):
+    OneLayerCompiler<512>(numQubits, inputGates), localQubits(localQubits), blasForbid(blasForbid), globalBit(globalBit_) {}
 
 LocalGroup SimpleCompiler::run() {
     LocalGroup lg;
@@ -264,8 +264,8 @@ LocalGroup AdvanceCompiler::run(State& state, bool usePerGate, bool useBLAS, int
             } else {
                 std::vector<GateType> tys;
                 for (auto& x: ggIdx) tys.push_back(remainGates[x].type);
-                bestEff = Evaluator::getInstance() -> perfPerGate(numQubits - MyGlobalVars::bit, tys) / ggIdx.size();
-                // printf("eff-pergate %f %d %f\n", Evaluator::getInstance() -> perfPerGate(numQubits - MyGlobalVars::bit, tys), (int) ggIdx.size(), bestEff);
+                bestEff = Evaluator::getInstance() -> perfPerGate(numQubits - globalBit, tys) / ggIdx.size();
+                // printf("eff-pergate %f %d %f\n", Evaluator::getInstance() -> perfPerGate(numQubits - globalBit, tys), (int) ggIdx.size(), bestEff);
             }
 
             for (int matSize = 4; matSize < 8; matSize ++) {
@@ -274,8 +274,8 @@ LocalGroup AdvanceCompiler::run(State& state, bool usePerGate, bool useBLAS, int
                 std::vector<int> idx = getGroupOpt(full, related, false, matSize, localQubits | blasForbid);
                 if (idx.size() == 0)
                     continue;
-                double eff = Evaluator::getInstance() -> perfBLAS(numQubits - MyGlobalVars::bit, matSize) / idx.size();
-                // printf("eff-blas(%d) %f %d %f\n", matSize, Evaluator::getInstance() -> perfBLAS(numQubits - MyGlobalVars::bit, matSize), (int) idx.size(), eff);
+                double eff = Evaluator::getInstance() -> perfBLAS(numQubits - globalBit, matSize) / idx.size();
+                // printf("eff-blas(%d) %f %d %f\n", matSize, Evaluator::getInstance() -> perfBLAS(numQubits - globalBit, matSize), (int) idx.size(), eff);
                 if (eff < bestEff) {
                     ggIdx = idx;
                     ggBackend = Backend::BLAS;

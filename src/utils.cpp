@@ -116,3 +116,14 @@ idx_t to_bitmap(std::vector<int> qubits) {
     for (auto& x: qubits) ret |= 1ll << x;
     return ret;
 }
+
+idx_t duplicate_bit(idx_t x) {
+    idx_t result = 0;
+    for (int i = 0; x > 0; i++) {
+        if (x & (1ll << i)) {
+            result |= 3ll << (i * 2);
+            x -= 1ll << i;
+        }
+    }
+    return result;
+}

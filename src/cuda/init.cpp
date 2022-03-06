@@ -18,7 +18,7 @@ namespace CudaImpl {
 
 void initState(std::vector<cpx*> &deviceStateVec, int numQubits) {
     size_t size = (sizeof(cuCpx) << numQubits) >> MyGlobalVars::bit;
-    if ((MyGlobalVars::numGPUs > 1 && !INPLACE) || GPU_BACKEND == 3 || GPU_BACKEND == 4 || MODE > 0) {
+    if ((MyGlobalVars::numGPUs > 1 && !INPLACE) || GPU_BACKEND == 3 || GPU_BACKEND == 4 || MODE == 1) {
         size <<= 1;
     }
 #if INPLACE

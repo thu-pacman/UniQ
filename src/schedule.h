@@ -95,9 +95,9 @@ struct LocalGroup {
 
     bool contains(int i) { return (relatedQubits >> i) & 1; }
     void getCuttPlanPointers(int numLocalQubits, std::vector<transHandle*> &transPlanPointers, std::vector<int*> &transPermPointers, std::vector<int> &locals, bool isFirstGroup = false);
-    State initState(const State& oldState, int numQubits, const std::vector<int>& newGlobals, idx_t overlapGlobals, idx_t overlapRelated);
+    State initState(const State& oldState, int numQubits, const std::vector<int>& newGlobals, idx_t overlapGlobals, idx_t overlapRelated, int globalBit);
     State initFirstGroupState(const State& oldState, int numQubits, const std::vector<int>& newGlobals);
-    State initStateInplace(const State& oldState, int numQubits, const std::vector<int>& newGlobals, idx_t overlapGlobals);
+    State initStateInplace(const State& oldState, int numQubits, const std::vector<int>& newGlobals, idx_t overlapGlobals, int globalBit);
     std::vector<unsigned char> serialize() const;
     static LocalGroup deserialize(const unsigned char* arr, int& cur);
 };

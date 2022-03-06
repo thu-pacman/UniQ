@@ -51,14 +51,20 @@ void initGPUMatrix(std::vector<cpx*>& deviceMats, int matQubit, const std::vecto
 void initCuttPlans(std::vector<cuttHandle*>& transPlanPointers, const std::vector<int*>& transPermPointers, const std::vector<int>& locals, int numLocalQubits) {
     int total = transPlanPointers.size();
     cuttHandle plans[total];
-    std::vector<int> dim(numLocalQubits, 2);
+#if MODE == 2
+    int rate = 2;
+#else
+    int rate = 1;
+#endif
     if (total == 0) return;
+    std::vector<int> dim(numLocalQubits / rate, 2 * rate);
 
     checkCudaErrors(cudaSetDevice(0));
 
     #pragma omp parallel for
     for (int i = 0; i < total; i++) {
-        checkCuttErrors(cuttPlan(&plans[i], locals[i], dim.data(), transPermPointers[i], sizeof(cpx), MyGlobalVars::streams[0], false));
+        int local = locals[i] / rate;
+        checkCuttErrors(cuttPlan(&plans[i], local, dim.data(), transPermPointers[i], sizeof(cpx), MyGlobalVars::streams[0], false));
     }
 
     for (int g = 0; g < MyGlobalVars::localGPUs; g++) {

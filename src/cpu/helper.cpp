@@ -39,7 +39,12 @@ void initState(std::vector<cpx*> &deviceStateVec, int numQubits) {
 void initHpttPlans(std::vector<std::shared_ptr<hptt::Transpose<cpx>>*>& transPlanPointers, const std::vector<int*>& transPermPointers, const std::vector<int>& locals, int numLocalQubits) {
     if (transPlanPointers.size() == 0) return;
     int total = transPlanPointers.size();
+#if MODE == 2
+    numLocalQubits /= 2;
+    std::vector<int> dims(numLocalQubits, 4);
+#else
     std::vector<int> dims(numLocalQubits, 2);
+#endif
     for (int i = 0; i < total; i++) {
         *transPlanPointers[i] = hptt::create_plan(
             transPermPointers[i], numLocalQubits,

@@ -12,7 +12,11 @@ static __shared__ cuCpx shm[1<<LOCAL_QUBIT_SIZE];
 static __shared__ idx_t blockBias;
 
 __device__ __constant__ value_t recRoot2 = 0.70710678118654752440084436210485; // more elegant way?
+#if MODE != 2
 __constant__ KernelGate deviceGates[MAX_GATE];
+#else
+__device__ KernelGate deviceGates[MAX_GATE];
+#endif
 
 std::vector<int*> loIdx_device;
 std::vector<int*> shiftAt_device;
@@ -469,6 +473,7 @@ __device__ void saveData(cuCpx* a, unsigned int* threadBias, unsigned int enumer
 
 template <unsigned int blockSize>
 __global__ void run(cuCpx* a, unsigned int* threadBias, int* loArr, int* shiftAt, int numLocalQubits, int numGates, unsigned int blockHot, unsigned int enumerate) {
+    printf("[warning]: LOCAL_QUBIT_SIZE & THREAD_DEP");
     unsigned int idx = (unsigned int) blockIdx.x * blockSize + threadIdx.x;
     fetchData(a, threadBias, idx, blockHot, enumerate, numLocalQubits);
     __syncthreads();

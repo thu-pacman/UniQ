@@ -619,7 +619,43 @@ GateType Gate::toU(GateType type) {
 }
 
 std::string Gate::get_name(GateType ty) {
-    return random(0, 10, ty).name;
+    switch (ty) {
+        case GateType::CNOT: return "CN";
+        case GateType::CY: return "CY";
+        case GateType::CZ: return "CZ";
+        case GateType::CRX: return "CRX";
+        case GateType::CRY: return "CRY";
+        case GateType::CU1: return "CU1";
+        case GateType::CRZ: return "CRZ";
+        case GateType::CU: return "CU";
+        case GateType::U1: return "U1";
+        case GateType::U2: return "U2";
+        case GateType::U3: return "U3";
+        case GateType::U: return "U";
+        case GateType::H: return "H";
+        case GateType::X: return "X";
+        case GateType::Y: return "Y";
+        case GateType::Z: return "Z";
+        case GateType::S: return "S";
+        case GateType::SDG: return "SDG";
+        case GateType::T: return "T";
+        case GateType::TDG: return "TDG";
+        case GateType::RX: return "RX";
+        case GateType::RY: return "RY";
+        case GateType::RZ: return "RZ";
+        case GateType::RZZ: return "RZZ";
+        case GateType::MCU: return "MCU";
+        case GateType::TOTAL: return "???";
+        case GateType::ID: return "ID";
+        case GateType::GII: return "GII";
+        case GateType::GZZ: return "GZZ";
+        case GateType::GOC: return "GOC";
+        case GateType::GCC: return "GCC";
+        case GateType::DIG: return "DIG";
+        case GateType::MCI: return "MCI";
+        case GateType::V01: return "V01";
+    }
+    UNREACHABLE();
 }
 
 std::vector<unsigned char> Gate::serialize() const {

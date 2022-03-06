@@ -44,6 +44,10 @@ set(LOCAL_QUBIT_SIZE "10" CACHE STRING "local qubit size")
 MESSAGE(STATUS "local qubit size = ${LOCAL_QUBIT_SIZE}")
 add_definitions(-DLOCAL_QUBIT_SIZE_DEFINED=${LOCAL_QUBIT_SIZE})
 
+set(MAX_ERROR_LEN "3" CACHE STRING "maximum error channels for each gate")
+MESSAGE(STATUS "max error len = ${MAX_ERROR_LEN}")
+add_definitions(-DMAX_ERROR_LEN_DEFINED=${MAX_ERROR_LEN})
+
 set(GPU_BACKEND "group" CACHE STRING "Backend mode, one of [serial, group, group-serial, blas, mix, blas-advance]")
 
 if (GPU_BACKEND STREQUAL "serial")

@@ -259,6 +259,9 @@ int main(int argc, char* argv[]) {
         exit(1);
     }
     c = parse_circuit(std::string(argv[1]));
+#if MODE == 2
+    c->add_phase_amplitude_damping_error();
+#endif
     c->compile();
     c->run();
     c->printState();

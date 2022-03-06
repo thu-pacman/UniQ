@@ -8,12 +8,13 @@
 
 class Compiler {
 public:
-    Compiler(int numQubits, std::vector<Gate> inputGates);
+    Compiler(int numQubits, std::vector<Gate> inputGates, int globalBits);
     Schedule run();
 private:
     void fillLocals(LocalGroup& lg);
     std::vector<std::pair<std::vector<Gate>, idx_t>> moveToNext(LocalGroup& lg);
     int numQubits;
+    int globalBit;
     int localSize;
     int shareSize;
     bool enableGlobal;
@@ -46,11 +47,12 @@ private:
 
 class AdvanceCompiler: public OneLayerCompiler<512> {
 public:
-    AdvanceCompiler(int numQubits, idx_t localQubits, idx_t blasForbid, std::vector<Gate> inputGates);
+    AdvanceCompiler(int numQubits, idx_t localQubits, idx_t blasForbid, std::vector<Gate> inputGates, int globalBit);
     LocalGroup run(State &state, bool usePerGate, bool useBLAS, int preGateSize, int blasSize, int cuttSize);
 private:
     idx_t localQubits;
     idx_t blasForbid;
+    int globalBit;
 };
 
 class ChunkCompiler: public OneLayerCompiler<512> {
