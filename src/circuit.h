@@ -30,6 +30,7 @@ public:
     ResultItem ampAt(idx_t idx);
     cpx ampAtGPU(idx_t idx);
     bool localAmpAt(idx_t idx, ResultItem& item);
+    void dm_with_error();
     const int numQubits;
 
 private:

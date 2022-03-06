@@ -50,6 +50,8 @@ int Circuit::run(bool copy_back, bool destroy) {
     exe1.dm_transpose();
     DevExecutor exe2(deviceStateVec, numQubits, schedule);
     exe2.run();
+#elif MODE == 2
+    UNIMPLEMENTED();
 #endif
 // #elif GPU_BACKEND == 2
 //     gates.clear();
@@ -96,6 +98,240 @@ int Circuit::run(bool copy_back, bool destroy) {
 #endif
     }
     return duration.count();
+}
+
+#include <cmath>
+void Circuit::dm_with_error() {
+    // phase_amplitude_damping_error
+    value_t param_amp[50] = {
+        0.13522296, 0.34196305, 0.24942207, 0.20366025, 0.36708856,
+        0.22573069, 0.16126925, 0.22023124, 0.19477643, 0.22062259,
+        0.34242915, 0.29556578, 0.14447562, 0.24413769, 0.36841306,
+        0.29977425, 0.18354474, 0.17749279, 0.35026603, 0.34237515,
+        0.30820619, 0.17611002, 0.23364228, 0.20900146, 0.26849671,
+        0.19429553, 0.29175968, 0.32635873, 0.20648301, 0.19582834,
+        0.16577554, 0.20725059, 0.3529493 , 0.15643779, 0.13911531,
+        0.13506932, 0.22451938, 0.19976538, 0.12964262, 0.34413908,
+        0.35384347, 0.37235135, 0.34113041, 0.17087591, 0.28486187,
+        0.35908144, 0.30639709, 0.30138282, 0.37030199, 0.12811117
+    };
+    value_t param_phase[50] = {
+        0.27165516, 0.35525184, 0.1916562 , 0.20513042, 0.27364267,
+        0.15848727, 0.37182112, 0.30637188, 0.31124254, 0.33848456,
+        0.26229897, 0.12982723, 0.32468533, 0.20456679, 0.15046644,
+        0.31481037, 0.33237344, 0.22990046, 0.24478173, 0.34522711,
+        0.34800876, 0.27030219, 0.14428052, 0.24037756, 0.36350212,
+        0.22666077, 0.27186536, 0.16700415, 0.21254885, 0.34969858,
+        0.29483833, 0.25706624, 0.27592144, 0.33215269, 0.33985181,
+        0.15013914, 0.27628303, 0.2027231 , 0.31656706, 0.27485518,
+        0.30443711, 0.3564536 , 0.29340223, 0.19076045, 0.20382232,
+        0.15499888, 0.31420134, 0.21966027, 0.24792838, 0.29566892
+    };
+
+    Error errs[numQubits / 2];
+
+    // c0 = 1 c1 = 0
+    for (int i = 0; i < numQubits / 2; i++) {
+        value_t amp = param_amp[i], phase = param_phase[i];
+        value_t param = 1 - amp - phase;
+        value_t A0[2][2] = {{1.0, 0.0}, {0.0, sqrt(param)}};
+        value_t A1[2][2] = {{0.0, sqrt(amp)}, {0.0, 0.0}};
+        value_t A2[2][2] = {{0.0, 0.0}, {0.0, sqrt(phase)}};
+        errs[i].gates = {Gate::GOC(i, A0[1][1], 0.0), Gate::V01(i, A1[0][1]), Gate::DIG(i, cpx(0.0), A2[1][1])};
+    }
+
+    cpx* state = new cpx[1 << numQubits];
+    memset(reinterpret_cast<void*>(state), 0, sizeof(cpx) * (1 << numQubits));
+    state[0] = cpx(1.0);
+    int n2 = numQubits / 2;
+    for (auto& gate: gates) {
+        // U\rhoU^{\dagger}
+        std::vector<int> targets;
+        if (gate.isSingleGate()) {
+            int m = 1 << (numQubits - 1);
+            int t = gate.targetQubit;
+            targets.push_back(t);
+            idx_t mask_inner = (idx_t(1) << t) - 1;
+            idx_t mask_outer = (idx_t(1) << (numQubits - 1)) - 1 - mask_inner;
+            cpx mat[2][2] = {{gate.mat[0][0], gate.mat[0][1]}, {gate.mat[1][0], gate.mat[1][1]}};
+            #pragma omp parallel for
+            for (idx_t i = 0; i < (idx_t(1) << (numQubits - 1)); i++) {
+                idx_t lo = (i & mask_inner) + ((i & mask_outer) << 1);
+                idx_t hi = lo | (idx_t(1) << t);
+                cpx lo_val = state[lo];
+                cpx hi_val = state[hi];
+                state[lo] = lo_val * mat[0][0] + hi_val * mat[0][1];
+                state[hi] = lo_val * mat[1][0] + hi_val * mat[1][1];
+            }
+            t += n2;
+            // do not need to transpose after t+=n2
+            mat[0][0] = std::conj(mat[0][0]);
+            mat[0][1] = std::conj(mat[0][1]);
+            mat[1][0] = std::conj(mat[1][0]);
+            mat[1][1] = std::conj(mat[1][1]);
+            mask_inner = (idx_t(1) << t) - 1;
+            mask_outer = (idx_t(1) << (numQubits - 1)) - 1 - mask_inner;
+            #pragma omp parallel for
+            for (idx_t i = 0; i < (idx_t(1) << (numQubits - 1)); i++) {
+                idx_t lo = (i & mask_inner) + ((i & mask_outer) << 1);
+                idx_t hi = lo | (idx_t(1) << t);
+                cpx lo_val = state[lo];
+                cpx hi_val = state[hi];
+                state[lo] = lo_val * mat[0][0] + hi_val * mat[0][1];
+                state[hi] = lo_val * mat[1][0] + hi_val * mat[1][1];
+            }
+        } else if (gate.isControlGate()) {
+            int c = gate.controlQubit;
+            int t = gate.targetQubit;
+            targets.push_back(c);
+            targets.push_back(t);
+            idx_t low_bit = std::min(c, t);
+            idx_t high_bit = std::max(c, t);
+            idx_t mask_inner = (idx_t(1) << low_bit) - 1;
+            idx_t mask_middle = (idx_t(1) << (high_bit - 1)) - 1 - mask_inner;
+            idx_t mask_outer = (idx_t(1) << (numQubits - 2)) - 1 - mask_inner - mask_middle;
+            cpx mat[2][2] = {{gate.mat[0][0], gate.mat[0][1]}, {gate.mat[1][0], gate.mat[1][1]}};
+            #pragma omp parallel for
+            for (idx_t i = 0; i < (idx_t(1) << (numQubits - 2)); i++) {
+                idx_t lo = (i & mask_inner) + ((i & mask_middle) << 1) + ((i & mask_outer) << 2);
+                lo |= idx_t(1) << c;
+                idx_t hi = lo | (idx_t(1) << t);
+                cpx lo_val = state[lo];
+                cpx hi_val = state[hi];
+                state[lo] = lo_val * mat[0][0] + hi_val * mat[0][1];
+                state[hi] = lo_val * mat[1][0] + hi_val * mat[1][1];
+            }
+            c += n2;
+            t += n2;
+            mat[0][0] = std::conj(mat[0][0]);
+            mat[0][1] = std::conj(mat[0][1]);
+            mat[1][0] = std::conj(mat[1][0]);
+            mat[1][1] = std::conj(mat[1][1]);
+            low_bit = std::min(c, t);
+            high_bit = std::max(c, t);
+            mask_inner = (idx_t(1) << low_bit) - 1;
+            mask_middle = (idx_t(1) << (high_bit - 1)) - 1 - mask_inner;
+            mask_outer = (idx_t(1) << (numQubits - 2)) - 1 - mask_inner - mask_middle;
+            #pragma omp parallel for
+            for (idx_t i = 0; i < (idx_t(1) << (numQubits - 2)); i++) {
+                idx_t lo = (i & mask_inner) + ((i & mask_middle) << 1) + ((i & mask_outer) << 2);
+                lo |= idx_t(1) << c;
+                idx_t hi = lo | (idx_t(1) << t);
+                cpx lo_val = state[lo];
+                cpx hi_val = state[hi];
+                state[lo] = lo_val * mat[0][0] + hi_val * mat[0][1];
+                state[hi] = lo_val * mat[1][0] + hi_val * mat[1][1];
+            }
+        } else if (gate.isTwoQubitGate()) {
+            int c = gate.encodeQubit;
+            int t = gate.targetQubit;
+            targets.push_back(c);
+            targets.push_back(t);
+            idx_t low_bit = std::min(c, t);
+            idx_t high_bit = std::max(c, t);
+            idx_t mask_inner = (idx_t(1) << low_bit) - 1;
+            idx_t mask_middle = (idx_t(1) << (high_bit - 1)) - 1 - mask_inner;
+            idx_t mask_outer = (idx_t(1) << (numQubits - 2)) - 1 - mask_inner - mask_middle;
+            cpx mat[2][2] = {{gate.mat[0][0], gate.mat[0][1]}, {gate.mat[1][0], gate.mat[1][1]}};
+            #pragma omp parallel for
+            for (idx_t i = 0; i < (idx_t(1) << (numQubits - 2)); i++) {
+                idx_t s00 = (i & mask_inner) + ((i & mask_middle) << 1) + ((i & mask_outer) << 2);
+                idx_t s01 = s00 | (idx_t(1) << t);
+                idx_t s10 = s00 | (idx_t(1) << c);
+                idx_t s11 = s01 | s10;
+                cpx v00 = state[s00];
+                cpx v11 = state[s11];
+                state[s00] = v00 * mat[0][0] + v11 * mat[1][1];
+                state[s11] = v11 * mat[0][0] + v00 * mat[1][1];
+
+                cpx v01 = state[s01];
+                cpx v10 = state[s10];
+                state[s01] = v01 * mat[0][1] + v10 * mat[1][0];
+                state[s10] = v10 * mat[0][1] + v01 * mat[1][0];
+            }
+            c += n2;
+            t += n2;
+            mat[0][0] = std::conj(mat[0][0]);
+            mat[0][1] = std::conj(mat[0][1]);
+            mat[1][0] = std::conj(mat[1][0]);
+            mat[1][1] = std::conj(mat[1][1]);
+            low_bit = std::min(c, t);
+            high_bit = std::max(c, t);
+            mask_inner = (idx_t(1) << low_bit) - 1;
+            mask_middle = (idx_t(1) << (high_bit - 1)) - 1 - mask_inner;
+            mask_outer = (idx_t(1) << (numQubits - 2)) - 1 - mask_inner - mask_middle;
+            #pragma omp parallel for
+            for (idx_t i = 0; i < (idx_t(1) << (numQubits - 2)); i++) {
+                idx_t s00 = (i & mask_inner) + ((i & mask_middle) << 1) + ((i & mask_outer) << 2);
+                idx_t s01 = s00 | (idx_t(1) << t);
+                idx_t s10 = s00 | (idx_t(1) << c);
+                idx_t s11 = s01 | s10;
+                cpx v00 = state[s00];
+                cpx v11 = state[s11];
+                state[s00] = v00 * mat[0][0] + v11 * mat[1][1];
+                state[s11] = v11 * mat[0][0] + v00 * mat[1][1];
+
+                cpx v01 = state[s01];
+                cpx v10 = state[s10];
+                state[s01] = v01 * mat[0][1] + v10 * mat[1][0];
+                state[s10] = v10 * mat[0][1] + v01 * mat[1][0];
+            }
+        } else {
+            UNREACHABLE();
+        }
+
+        // apply error to gate
+        for (auto target: targets) {
+            int t1 = target;
+            int t2 = target + n2;
+            idx_t low_bit = t1;
+            idx_t high_bit = t2;
+            idx_t mask_inner = (idx_t(1) << low_bit) - 1;
+            idx_t mask_middle = (idx_t(1) << (high_bit - 1)) - 1 - mask_inner;
+            idx_t mask_outer = (idx_t(1) << (numQubits - 2)) - 1 - mask_inner - mask_middle;
+            #pragma omp parallel for
+            for (idx_t i = 0; i < (idx_t(1) << (numQubits - 2)); i++) {
+                idx_t s00 = (i & mask_inner) + ((i & mask_middle) << 1) + ((i & mask_outer) << 2);
+                idx_t s01 = s00 | (idx_t(1) << t1);
+                idx_t s10 = s00 | (idx_t(1) << t2);
+                idx_t s11 = s01 | s10;
+                cpx v00 = state[s00];
+                cpx v01 = state[s01];
+                cpx v10 = state[s10];
+                cpx v11 = state[s11];
+                cpx n00 = cpx(0.0);
+                cpx n01 = cpx(0.0);
+                cpx n10 = cpx(0.0);
+                cpx n11 = cpx(0.0);
+                for (auto& g: errs[target].gates) {
+                    cpx mat[2][2] = {{g.mat[0][0], g.mat[0][1]}, {g.mat[1][0], g.mat[1][1]}};
+                    printf("mat %f %f %f %f\n", mat[0][0].real(), mat[0][1].real(), mat[1][0].real(), mat[1][1].real());
+                    cpx w00 = mat[0][0] * v00 + mat[0][1] * v10;
+                    cpx w01 = mat[0][0] * v01 + mat[0][1] * v11;
+                    cpx w10 = mat[1][0] * v00 + mat[1][1] * v10;
+                    cpx w11 = mat[1][0] * v01 + mat[1][1] * v11;
+                    mat[0][0] = std::conj(mat[0][0]);
+                    mat[0][1] = std::conj(mat[0][1]);
+                    mat[1][0] = std::conj(mat[1][0]);
+                    mat[1][1] = std::conj(mat[1][1]);
+                    n00 += w00 * mat[0][0] + w01 * mat[0][1];
+                    n01 += w00 * mat[1][0] + w01 * mat[1][1];
+                    n10 += w10 * mat[0][0] + w11 * mat[0][1];
+                    n11 += w10 * mat[1][0] + w11 * mat[1][1];
+                }
+                state[s00] = n00;
+                state[s01] = n01;
+                state[s10] = n10;
+                state[s11] = n11;
+            }
+        }
+    }
+    for (int i = 0; i < (1 << n2); i++) {
+        for (int j = 0; j < (1 << n2); j++) {
+            printf("%.3f,%.3f ", state[i << n2 | j].real(), state[i << n2 | j].imag());
+        }
+        printf("\n");
+    }
 }
 
 void Circuit::dumpGates() {

@@ -98,7 +98,7 @@ KernelGate Executor::getGate(const Gate& gate, int part_id, int numLocalQubits, 
         } else {
             cpx val = IS_HIGH_PART(part_id, t) ? gate.mat[1][1]: gate.mat[0][0];
             cpx mat[2][2] = {val, cpx(0), cpx(0), val};
-            return KernelGate::mcGate(GateType::MCI, cbits, 0, 0, gate.mat);
+            return KernelGate::mcGate(GateType::MCI, cbits, 0, 0, mat);
         }
     } else if (gate.isTwoQubitGate()) {
         int t1 = gate.encodeQubit, t2 = gate.targetQubit;

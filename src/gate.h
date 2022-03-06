@@ -5,7 +5,7 @@
 #include "utils.h"
 
 enum class GateType {
-    CNOT, CY, CZ, CRX, CRY, CU1, CRZ, CU, U1, U2, U3, U, H, X, Y, Z, S, SDG, T, TDG, RX, RY, RZ, RZZ, MCU, TOTAL, ID, GII, GZZ, GOC, GCC, DIG, MCI
+    CNOT, CY, CZ, CRX, CRY, CU1, CRZ, CU, U1, U2, U3, U, H, X, Y, Z, S, SDG, T, TDG, RX, RY, RZ, RZZ, MCU, TOTAL, ID, GII, GZZ, GOC, GCC, DIG, MCI, V01
 };
 
 struct Gate {
@@ -72,6 +72,8 @@ struct Gate {
     static Gate GZZ(int targetQubit);
     static Gate GOC(int targetQubit, value_t r, value_t i);
     static Gate GCC(int targetQubit, value_t r, value_t i);
+    static Gate DIG(int targetQubit, cpx lo, cpx hi);
+    static Gate V01(int targetQubit, cpx val);
     static Gate RZZ(int targetQubit1, int targetQubit2, value_t angle);
     static Gate MCU(std::vector<int> controlQubits, int targetQubit, std::vector<cpx> params);
     static Gate random(int lo, int hi);
@@ -81,6 +83,10 @@ struct Gate {
     static std::string get_name(GateType ty);
     std::vector<unsigned char> serialize() const;
     static Gate deserialize(const unsigned char* arr, int& cur);
+};
+
+struct Error {
+    std::vector<Gate> gates;
 };
 
 struct KernelGate {

@@ -384,6 +384,28 @@ Gate Gate::MCU(std::vector<int> controlQubits, int targetQubit, std::vector<cpx>
     return g;
 }
 
+Gate Gate::V01(int targetQubit, cpx val) {
+    Gate g;
+    g.gateID = ++globalGateID;
+    g.type = GateType::V01;
+    g.mat[0][0] = cpx(0.0); g.mat[0][1] = val;
+    g.mat[1][0] = cpx(0.0); g.mat[1][1] = cpx(0.0);
+    g.name = "V01";
+    g.targetQubit = targetQubit;
+    return g;
+}
+
+Gate Gate::DIG(int targetQubit, cpx lo, cpx hi) {
+    Gate g;
+    g.gateID = ++globalGateID;
+    g.type = GateType::DIG;
+    g.mat[0][0] = lo; g.mat[0][1] = cpx(0.0);
+    g.mat[1][0] = cpx(0.0); g.mat[1][1] = hi;
+    g.name = "DIG";
+    g.targetQubit = targetQubit;
+    return g;
+}
+
 auto gen_01_float = []() {
     return rand() * 1.0 / RAND_MAX;
 };
