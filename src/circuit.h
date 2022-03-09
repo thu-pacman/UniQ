@@ -11,9 +11,7 @@ struct ResultItem {
     ResultItem(const idx_t& idx, const cpx& amp): idx(idx), amp(amp) {}
     idx_t idx;
     cpx amp;
-    void print() {
-        printf("%lld %.12f: %.12f %.12f\n", idx, amp.real() * amp.real() + amp.imag() * amp.imag(), zero_wrapper(amp.real()), zero_wrapper(amp.imag()));
-    }
+    void print(int numQubits);
     bool operator < (const ResultItem& b) { return idx < b.idx; }
 };
 

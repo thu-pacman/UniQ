@@ -108,7 +108,7 @@ struct KernelGate {
     value_t r00, i00, r01, i01, r10, i10, r11, i11;
 
 #if MODE == 2
-    int err_len;
+    int err_len_control, err_len_target;
     value_t errs_control[MAX_ERROR_LEN][2][2][2]; // channel, mat_row, mat_col, real/imag
     value_t errs_target[MAX_ERROR_LEN][2][2][2];
     KernelGate(
@@ -123,7 +123,10 @@ struct KernelGate {
         targetIsGlobal(targetIsGlobal_), controlIsGlobal(controlIsGlobal_),
         r00(mat[0][0].real()), i00(mat[0][0].imag()), r01(mat[0][1].real()), i01(mat[0][1].imag()),
         r10(mat[1][0].real()), i10(mat[1][0].imag()), r11(mat[1][1].real()), i11(mat[1][1].imag()),
-        err_len(0) {}
+        err_len_control(0), err_len_target(0) {}
+
+    void addError(const std::vector<Error>& controlErrors, const std::vector<Error>& targetErrors);
+
 #else
     KernelGate(
         GateType type_,
@@ -177,7 +180,7 @@ struct KernelGate {
         int targetQubit, char targetIsGlobal,
         const cpx mat[2][2]
     ) {
-        return KernelGate(type, 0, 2, -1, targetQubit, targetIsGlobal, mat);
+        return KernelGate(type, 0, -1, -1, targetQubit, targetIsGlobal, mat);
     }
 
     static KernelGate ID() {

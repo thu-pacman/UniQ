@@ -51,6 +51,9 @@ void initState(std::vector<cpx*> &deviceStateVec, int numQubits) {
 
 void initCudaObjects() {
     checkCudaErrors(cudaGetDeviceCount(&MyGlobalVars::localGPUs));
+    #if MODE == 2
+        dmAllocGate(MyGlobalVars::localGPUs);
+    #endif
     #if ALL_TO_ALL
     if (MyGlobalVars::localGPUs != 1) {
         printf("[error] only support one GPU / rank in ALL_TO_ALL mode");

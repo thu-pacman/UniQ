@@ -3,18 +3,17 @@ case $(hostname -s) in
   nico*)
     # echo "[CLUSTER] nico"
     # GPU
-    # source /opt/spack/share/spack/setup-env.sh
-    # spack load cuda@11.3.1 /ufjgm56
-    # spack load openmpi@4.1.1 /k5abxxm
-    # export NCCL_ROOT=/home/heheda/tools/nccl/build
-    # # CUDA_ROOT=`spack find --loaded --paths cuda | awk 'NR>1 {print $2}'`
-    # # MPI_ROOT=`spack find --loaded --paths openmpi | awk 'NR>1 {print $2}'`
-    # export CPATH=${NCCL_ROOT}/include:${CPATH-}
-    # export LIBRARY_PATH=${NCCL_ROOT}/lib:${LIBRARY_PATH-}
-    # export LD_LIBRARY_PATH=${NCCL_ROOT}/lib:${LD_LIBRARY_PATH-}
-    # echo $LD_LIBRARY_PATH
+    source /opt/spack/share/spack/setup-env.sh
+    spack load cuda@11.3.1 /ufjgm56
+    spack load openmpi@4.1.1 /k5abxxm
+    export NCCL_ROOT=/home/heheda/tools/nccl/build
+    # CUDA_ROOT=`spack find --loaded --paths cuda | awk 'NR>1 {print $2}'`
+    # MPI_ROOT=`spack find --loaded --paths openmpi | awk 'NR>1 {print $2}'`
+    export CPATH=${NCCL_ROOT}/include:${CPATH-}
+    export LIBRARY_PATH=${NCCL_ROOT}/lib:${LIBRARY_PATH-}
+    export LD_LIBRARY_PATH=${NCCL_ROOT}/lib:${LD_LIBRARY_PATH-}
     # CPU
-    source /opt/intel/oneapi/setvars.sh
+    # source /opt/intel/oneapi/setvars.sh
     ;;
   gorgon*)
     echo "[CLUSTER] gorgon"

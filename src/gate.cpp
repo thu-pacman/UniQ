@@ -690,3 +690,32 @@ Gate Gate::deserialize(const unsigned char* arr, int& cur) {
     DESERIALIZE_STEP(g.encodeQubit);
     return g;
 }
+
+#if MODE == 2
+
+void KernelGate::addError(const std::vector<Error>& controlErrors, const std::vector<Error>& targetErrors) {
+    err_len_control = controlErrors.size();
+    for (int i = 0; i < err_len_control; i++) {
+        errs_control[i][0][0][0] = controlErrors[i].mat00.real();
+        errs_control[i][0][0][1] = controlErrors[i].mat00.imag();
+        errs_control[i][0][1][0] = controlErrors[i].mat01.real();
+        errs_control[i][0][1][1] = controlErrors[i].mat01.imag();
+        errs_control[i][1][0][0] = controlErrors[i].mat10.real();
+        errs_control[i][1][0][1] = controlErrors[i].mat10.imag();
+        errs_control[i][1][1][0] = controlErrors[i].mat11.real();
+        errs_control[i][1][1][1] = controlErrors[i].mat11.imag();
+    }
+    err_len_target = targetErrors.size();
+    for (int i = 0; i < err_len_control; i++) {
+        errs_target[i][0][0][0] = targetErrors[i].mat00.real();
+        errs_target[i][0][0][1] = targetErrors[i].mat00.imag();
+        errs_target[i][0][1][0] = targetErrors[i].mat01.real();
+        errs_target[i][0][1][1] = targetErrors[i].mat01.imag();
+        errs_target[i][1][0][0] = targetErrors[i].mat10.real();
+        errs_target[i][1][0][1] = targetErrors[i].mat10.imag();
+        errs_target[i][1][1][0] = targetErrors[i].mat11.real();
+        errs_target[i][1][1][1] = targetErrors[i].mat11.imag();
+    }
+}
+
+#endif

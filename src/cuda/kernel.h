@@ -35,7 +35,10 @@ void copyGatesToSymbol(KernelGate* hostGates, int numGates, cudaStream_t& stream
 // call cudaSetDevice() before this function
 void launchExecutor(int gridDim, cpx* deviceStateVec, unsigned int* threadBias, int numLocalQubits, int numGates, unsigned int blockHot, unsigned int enumerate, cudaStream_t& stream, int gpuID);
 
-
+// kernelDM
+void copyGatesToGlobal(KernelGate* hostGates, int numGates, cudaStream_t& stream, int gpuID);
+void launchDMExecutor(int gridDim, cpx* deviceStateVec, unsigned int* threadBias, int numLocalQubits, int numGates, unsigned int blockHot, unsigned int enumerate, cudaStream_t& stream, int gpuID);
+void dmAllocGate(int localGPUs);
 // kernelUtils
 void isnanTest(cpx* data, int n, cudaStream_t& stream);
 void printVector(cpx* data, int n, cudaStream_t& stream);

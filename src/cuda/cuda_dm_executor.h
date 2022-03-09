@@ -1,15 +1,16 @@
 #pragma once
-#include "executor.h"
-
-#include <cuda_runtime.h>
+#include "dm_executor.h"
 
 namespace CudaImpl {
-class CudaExecutor: public Executor {
+class CudaDMExecutor: public DMExecutor {
 public:
-    CudaExecutor(std::vector<cpx*> deviceStateVec, int numQubits, Schedule& schedule);
+    CudaDMExecutor(std::vector<cpx*> deviceStateVec, int numQubits, Schedule& schedule);
     void dm_transpose() override;
 
 protected:
+    void launchPerGateGroupDM(std::vector<Gate>& gates, KernelGate hostGates[], const State& state, idx_t relatedQubits, int numLocalQubits) override;
+
+    // unimplemented
     void transpose(std::vector<cuttHandle> plans) override;
     void inplaceAll2All(int commSize, std::vector<int> comm, const State& newState) override;
     void all2all(int commSize, std::vector<int> comm) override;
@@ -24,7 +25,6 @@ protected:
     void allBarrier() override;
 
     void prepareBitMap(idx_t relatedQubits, unsigned int& blockHot, unsigned int& threadBias, int numLocalQubits); // allocate threadBias
-    std::vector<cudaEvent_t> commEvents; // commEvents[slice][gpuID]
     std::vector<unsigned int*> threadBias;
 };
 }

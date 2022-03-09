@@ -155,7 +155,6 @@ void Schedule::dump(int numQubits) {
                     }
                 }
                 printf("\n");
-                printf("\n");
             }
             printf("\n");
         }

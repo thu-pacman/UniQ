@@ -8,6 +8,8 @@
 #include "dbg.h"
 using namespace std;
 
+namespace CudaSV {
+
 static __shared__ cuCpx shm[1<<LOCAL_QUBIT_SIZE];
 static __shared__ idx_t blockBias;
 
@@ -15,7 +17,7 @@ __device__ __constant__ value_t recRoot2 = 0.70710678118654752440084436210485; /
 #if MODE != 2
 __constant__ KernelGate deviceGates[MAX_GATE];
 #else
-__device__ KernelGate deviceGates[MAX_GATE];
+__device__ KernelGate deviceGates[1]; // for compile
 #endif
 
 std::vector<int*> loIdx_device;
@@ -234,8 +236,8 @@ __device__ void doCompute(int numGates, int* loArr, int* shiftAt) {
                 for (int j = threadIdx.x; j < m; j += blockSize) {
                     int s00 = ((j >> smallQubit) << (smallQubit + 1)) | (j & maskSmall);
                     s00 = ((s00 >> largeQubit) << (largeQubit + 1)) | (s00 & maskLarge);
-                    int s01 = s00 | (1 << gate.encodeQubit);
-                    int s10 = s00 | (1 << gate.targetQubit);
+                    int s01 = s00 | (1 << gate.targetQubit);
+                    int s10 = s00 | (1 << gate.encodeQubit);
                     int s11 = s01 | s10;
                     s00 = s00 ^ (s00 >> 3 & 7);
                     s01 = s01 ^ (s01 >> 3 & 7);
@@ -473,7 +475,6 @@ __device__ void saveData(cuCpx* a, unsigned int* threadBias, unsigned int enumer
 
 template <unsigned int blockSize>
 __global__ void run(cuCpx* a, unsigned int* threadBias, int* loArr, int* shiftAt, int numLocalQubits, int numGates, unsigned int blockHot, unsigned int enumerate) {
-    printf("[warning]: LOCAL_QUBIT_SIZE & THREAD_DEP");
     unsigned int idx = (unsigned int) blockIdx.x * blockSize + threadIdx.x;
     fetchData(a, threadBias, idx, blockHot, enumerate, numLocalQubits);
     __syncthreads();
@@ -482,16 +483,18 @@ __global__ void run(cuCpx* a, unsigned int* threadBias, int* loArr, int* shiftAt
     saveData(a, threadBias, enumerate);
 }
 
+}
+
 #if GPU_BACKEND == 1 || GPU_BACKEND == 3 || GPU_BACKEND == 4 || GPU_BACKEND == 5
 void initControlIdx() {
     int loIdx_host[10][10][128];
     int shiftAt_host[10][10];
-    loIdx_device.resize(MyGlobalVars::localGPUs);
-    shiftAt_device.resize(MyGlobalVars::localGPUs);
+    CudaSV::loIdx_device.resize(MyGlobalVars::localGPUs);
+    CudaSV::shiftAt_device.resize(MyGlobalVars::localGPUs);
     for (int i = 0; i < MyGlobalVars::localGPUs; i++) {
         cudaSetDevice(i);
-        cudaMalloc(&loIdx_device[i], sizeof(loIdx_host));
-        cudaMalloc(&shiftAt_device[i], sizeof(shiftAt_host));
+        cudaMalloc(&CudaSV::loIdx_device[i], sizeof(loIdx_host));
+        cudaMalloc(&CudaSV::shiftAt_device[i], sizeof(shiftAt_host));
     }
     for (int i = 0; i < 128; i++)
         loIdx_host[0][0][i] = (i << 1) ^ ((i & 4) >> 2);
@@ -536,20 +539,20 @@ void initControlIdx() {
         }
     }
 
-    loIdx_device.resize(MyGlobalVars::localGPUs);
-    shiftAt_device.resize(MyGlobalVars::localGPUs);
+    CudaSV::loIdx_device.resize(MyGlobalVars::localGPUs);
+    CudaSV::shiftAt_device.resize(MyGlobalVars::localGPUs);
     for (int g = 0; g < MyGlobalVars::localGPUs; g++) {
-        checkCudaErrors(cudaMemcpyAsync(loIdx_device[g], loIdx_host[0][0], sizeof(loIdx_host), cudaMemcpyHostToDevice, MyGlobalVars::streams[g]));
-        checkCudaErrors(cudaMemcpyAsync(shiftAt_device[g], shiftAt_host[0], sizeof(shiftAt_host), cudaMemcpyHostToDevice, MyGlobalVars::streams[g]));
+        checkCudaErrors(cudaMemcpyAsync(CudaSV::loIdx_device[g], loIdx_host[0][0], sizeof(loIdx_host), cudaMemcpyHostToDevice, MyGlobalVars::streams[g]));
+        checkCudaErrors(cudaMemcpyAsync(CudaSV::shiftAt_device[g], shiftAt_host[0], sizeof(shiftAt_host), cudaMemcpyHostToDevice, MyGlobalVars::streams[g]));
     }
 }
 #endif
 
 void copyGatesToSymbol(KernelGate* hostGates, int numGates, cudaStream_t& stream, int gpuID) {
-    checkCudaErrors(cudaMemcpyToSymbolAsync(deviceGates, hostGates + gpuID * numGates, sizeof(KernelGate) * numGates, 0, cudaMemcpyDefault, stream));
+    checkCudaErrors(cudaMemcpyToSymbolAsync(CudaSV::deviceGates, hostGates + gpuID * numGates, sizeof(KernelGate) * numGates, 0, cudaMemcpyDefault, stream));
 }
 
 void launchExecutor(int gridDim, cpx* deviceStateVec, unsigned int* threadBias, int numLocalQubits, int numGates, unsigned int blockHot, unsigned int enumerate, cudaStream_t& stream, int gpuID) {
-    run<1<<THREAD_DEP><<<gridDim, 1<<THREAD_DEP, 0, stream>>>
-        (reinterpret_cast<cuCpx*>(deviceStateVec), threadBias, loIdx_device[gpuID], shiftAt_device[gpuID], numLocalQubits, numGates, blockHot, enumerate);
+    CudaSV::run<1<<THREAD_DEP><<<gridDim, 1<<THREAD_DEP, 0, stream>>>
+        (reinterpret_cast<cuCpx*>(deviceStateVec), threadBias, CudaSV::loIdx_device[gpuID], CudaSV::shiftAt_device[gpuID], numLocalQubits, numGates, blockHot, enumerate);
 }

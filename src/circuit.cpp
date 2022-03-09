@@ -11,6 +11,7 @@
 #ifdef USE_GPU
 #include "cuda/cuda_executor.h"
 #include "cuda/entry.h"
+#include "cuda/cuda_dm_executor.h"
 #endif
 #ifdef USE_CPU
 #include "cpu/cpu_executor.h"
@@ -21,11 +22,40 @@ using namespace std;
 
 #if USE_GPU
 typedef CudaImpl::CudaExecutor DevExecutor;
+#if MODE == 2
+typedef CudaImpl::CudaDMExecutor DevDMExecutor;
+#endif
 #elif USE_CPU
 typedef CpuImpl::CpuExecutor DevExecutor;
 #else
 TD // compile error
 #endif
+
+void ResultItem::print(int numQubits) {
+    switch (MODE) {
+        case 0: {
+            printf("%lld %.12f: %.12f %.12f\n", idx, amp.real() * amp.real() + amp.imag() * amp.imag(), zero_wrapper(amp.real()), zero_wrapper(amp.imag()));
+            break;
+        }
+        case 1: {
+            printf("%lld %lld %.12f: %.12f %.12f\n", idx >> (numQubits / 2), idx & ((1 << (numQubits / 2)) - 1), amp.real() * amp.real() + amp.imag() * amp.imag(), zero_wrapper(amp.real()), zero_wrapper(amp.imag()));
+            break;
+        }
+        case 2: {
+            idx_t row = 0, col = 0;
+            for (int i = 0; i < numQubits; i++) {
+                int bit = idx >> i & 1;
+                if (i & 1) {
+                    row |= bit << (i / 2);
+                } else {
+                    col |= bit << (i / 2);
+                }
+            }
+            printf("%lld %lld %.12f: %.12f %.12f\n", row, col, amp.real() * amp.real() + amp.imag() * amp.imag(), zero_wrapper(amp.real()), zero_wrapper(amp.imag()));
+            break;
+        }
+    }
+}
 
 int Circuit::run(bool copy_back, bool destroy) {
 #ifdef USE_GPU
@@ -56,7 +86,7 @@ int Circuit::run(bool copy_back, bool destroy) {
     DevExecutor exe2(deviceStateVec, numQubits, schedule);
     exe2.run();
 #elif MODE == 2
-    UNIMPLEMENTED();
+    DevDMExecutor(deviceStateVec, numQubits / 2, schedule).run();
 #endif
 // #elif GPU_BACKEND == 2
 //     gates.clear();
@@ -422,20 +452,34 @@ void Circuit::dumpGates() {
 idx_t Circuit::toPhysicalID(idx_t idx) {
     idx_t id = 0;
     auto& pos = schedule.finalState.pos;
+#if MODE != 2
     for (int i = 0; i < numQubits; i++) {
         if (idx >> i & 1)
             id |= idx_t(1) << pos[i];
     }
+#else
+    for (int i = 0; i < numQubits / 2; i++) {
+        idx_t msk = (idx >> (i * 2) & 3);
+        id |= msk << (pos[i] * 2);
+    }
+#endif
     return id;
 }
 
 idx_t Circuit::toLogicID(idx_t idx) {
     idx_t id = 0;
     auto& pos = schedule.finalState.pos;
+#if MODE != 2
     for (int i = 0; i < numQubits; i++) {
         if (idx >> pos[i] & 1)
             id |= idx_t(1) << i;
     }
+#else
+    for (int i = 0; i < numQubits / 2; i++) {
+        idx_t msk = (idx >> (pos[i] * 2) & 3);
+        id |= msk << (i * 2);
+    }
+#endif
     return id;
 }
 
@@ -574,7 +618,7 @@ void Circuit::gatherAndPrint(const std::vector<ResultItem>& results) {
         );
         sort(collected, collected + totalItem);
         for (int i = 0; i < totalItem; i++)
-            collected[i].print();
+            collected[i].print(numQubits);
         delete[] collected;
     } else {
         int size = results.size();
@@ -594,7 +638,13 @@ void Circuit::printState() {
     std::vector<ResultItem> results;
     ResultItem item;
     for (int i = 0; i < 128; i++) {
-        if (localAmpAt(i, item)) {
+        idx_t idx;
+        switch (MODE) {
+            case 0: { idx = i; break; }
+            case 1: { idx = ((1 << (numQubits / 2)) + 1) * i; break; }
+            case 2: { idx = duplicate_bit(i); break; }
+        }
+        if (localAmpAt(idx, item)) {
             results.push_back(item);
         }
     }
@@ -626,7 +676,13 @@ void Circuit::printState() {
 #else
     std::vector<ResultItem> results;
     for (int i = 0; i < 128; i++) {
-        results.push_back(ampAt(i));
+        idx_t idx;
+        switch (MODE) {
+            case 0: { idx = i; break; }
+            case 1: { idx = ((1 << (numQubits / 2)) + 1) * i; break; }
+            case 2: { idx = duplicate_bit(i); break; }
+        }
+        results.push_back(ampAt(idx));
     }
 #ifdef SHOW_SCHEDULE
     for (int i = 0; i < numQubits; i++) {
@@ -635,19 +691,25 @@ void Circuit::printState() {
     results.push_back(ampAt((1ll << numQubits) - 1));
 #endif
     for (auto& item: results)
-        item.print();
+        item.print(numQubits);
     results.clear();
     for (idx_t i = 0; i < (1ll << numQubits); i++) {
         if (std::norm(result[i]) > 0.001) {
             idx_t logicID = toLogicID(i);
-            if (logicID >= 128) {
-                results.push_back(ResultItem(toLogicID(i), result[i]));
+            if (MODE == 0) {
+                if (logicID >= 128) {
+                    results.push_back(ResultItem(toLogicID(i), result[i]));
+                }
+            } else {
+                if ((logicID & 0x5555555555555555ll) != (logicID >> 1 & 0x5555555555555555ll) || logicID >= 128 * 128) {
+                    results.push_back(ResultItem(toLogicID(i), result[i]));
+                }
             }
         }
     }
     sort(results.begin(), results.end());
     for (auto& item: results)
-        item.print();
+        item.print(numQubits);
 #endif
 }
 

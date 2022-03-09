@@ -31,6 +31,9 @@ void Executor::run() {
     for (size_t lgID = 0; lgID < schedule.localGroups.size(); lgID ++) {
         auto& localGroup = schedule.localGroups[lgID];
         if (lgID > 0) {
+#if MODE==2
+            printf("[warning] communication not checked!\n");
+#endif
             if (INPLACE) {
                 this->inplaceAll2All(localGroup.a2aCommSize, localGroup.a2aComm, localGroup.state);
             } else {

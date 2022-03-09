@@ -68,7 +68,12 @@ std::vector<std::pair<std::vector<Gate>, idx_t>> Compiler::moveToNext(LocalGroup
 }
 
 Schedule Compiler::run() {
-    SimpleCompiler localCompiler(numQubits, localSize, (idx_t) -1, gates, true, 0, (1 << INPLACE) - 1);
+#if MODE == 2
+    bool enableGlobal = false;
+#else
+    bool enableGlobal = true;
+#endif
+    SimpleCompiler localCompiler(numQubits, localSize, (idx_t) -1, gates, enableGlobal, 0, (1 << INPLACE) - 1);
     // ChunkCompiler localCompiler(numQubits, localSize, 21, gates);
     LocalGroup localGroup = localCompiler.run();
     auto moveBack = moveToNext(localGroup);
@@ -138,8 +143,8 @@ Schedule Compiler::run() {
             overlapBlasForbid = (~localGroup.fullGroups[id - 1].relatedQubits) & gg.relatedQubits;
             // printf("overlapBlasForbid %llx\n", overlapBlasForbid);
         }
-        AdvanceCompiler overlapCompiler(numQubits, overlapLocals, overlapBlasForbid, moveBack[id].first, globalBit);
-        AdvanceCompiler fullCompiler(numQubits, gg.relatedQubits, 0, gg.gates, globalBit);
+        AdvanceCompiler overlapCompiler(numQubits, overlapLocals, overlapBlasForbid, moveBack[id].first, enableGlobal, globalBit);
+        AdvanceCompiler fullCompiler(numQubits, gg.relatedQubits, 0, gg.gates, enableGlobal, globalBit);
         switch (GPU_BACKEND) {
             case 1: // no break;
             case 2: {
@@ -181,8 +186,8 @@ OneLayerCompiler<MAX_GATES>::OneLayerCompiler(int numQubits, const std::vector<G
 SimpleCompiler::SimpleCompiler(int numQubits, int localSize, idx_t localQubits, const std::vector<Gate>& inputGates, bool enableGlobal, idx_t whiteList, idx_t required):
     OneLayerCompiler<2048>(numQubits, inputGates), localSize(localSize), localQubits(localQubits), enableGlobal(enableGlobal), whiteList(whiteList), required(required) {}
 
-AdvanceCompiler::AdvanceCompiler(int numQubits, idx_t localQubits, idx_t blasForbid, std::vector<Gate> inputGates, int globalBit_):
-    OneLayerCompiler<512>(numQubits, inputGates), localQubits(localQubits), blasForbid(blasForbid), globalBit(globalBit_) {}
+AdvanceCompiler::AdvanceCompiler(int numQubits, idx_t localQubits, idx_t blasForbid, std::vector<Gate> inputGates, bool enableGlobal, int globalBit_):
+    OneLayerCompiler<512>(numQubits, inputGates), localQubits(localQubits), blasForbid(blasForbid), enableGlobal(enableGlobal), globalBit(globalBit_) {}
 
 LocalGroup SimpleCompiler::run() {
     LocalGroup lg;
@@ -287,7 +292,7 @@ LocalGroup AdvanceCompiler::run(State& state, bool usePerGate, bool useBLAS, int
             fillRelated(related, state.layout);
             full = 0;
             cacheRelated = related[0];
-            ggIdx = getGroupOpt(full, related, true, perGateSize, -1ll);
+            ggIdx = getGroupOpt(full, related, true && enableGlobal, perGateSize, -1ll);
             ggBackend = Backend::PerGate;
         } else if (!usePerGate && useBLAS) {
             memset(related, 0, sizeof(related));

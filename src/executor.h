@@ -29,7 +29,7 @@ protected:
 
     void setState(const State& newState) { state = newState; }
     void applyGateGroup(GateGroup& gg, int sliceID = -1);
-    void applyPerGateGroup(GateGroup& gg);
+    virtual void applyPerGateGroup(GateGroup& gg);
     void applyBlasGroup(GateGroup& gg);
     void applyPerGateGroupSliced(GateGroup& gg, int sliceID);
     void applyBlasGroupSliced(GateGroup& gg, int sliceID);

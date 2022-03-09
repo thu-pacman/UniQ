@@ -47,11 +47,12 @@ private:
 
 class AdvanceCompiler: public OneLayerCompiler<512> {
 public:
-    AdvanceCompiler(int numQubits, idx_t localQubits, idx_t blasForbid, std::vector<Gate> inputGates, int globalBit);
+    AdvanceCompiler(int numQubits, idx_t localQubits, idx_t blasForbid, std::vector<Gate> inputGates, bool enableGlobal, int globalBit);
     LocalGroup run(State &state, bool usePerGate, bool useBLAS, int preGateSize, int blasSize, int cuttSize);
 private:
     idx_t localQubits;
     idx_t blasForbid;
+    bool enableGlobal;
     int globalBit;
 };
 
