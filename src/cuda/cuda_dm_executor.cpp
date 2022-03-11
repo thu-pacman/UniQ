@@ -48,9 +48,116 @@ void CudaDMExecutor::prepareBitMap(idx_t relatedQubits, unsigned int& blockHot, 
 }
 
 void CudaDMExecutor::dm_transpose() { UNIMPLEMENTED(); }
-void CudaDMExecutor::transpose(std::vector<cuttHandle> plans) { UNIMPLEMENTED(); }
+void CudaDMExecutor::transpose(std::vector<cuttHandle> plans) {
+    for (int g = 0; g < MyGlobalVars::localGPUs; g++) {
+        cudaSetDevice(g);
+        checkCuttErrors(cuttExecute(plans[g], deviceStateVec[g], deviceBuffer[g]));
+    }
+}
+
 void CudaDMExecutor::inplaceAll2All(int commSize, std::vector<int> comm, const State& newState) { UNIMPLEMENTED(); }
-void CudaDMExecutor::all2all(int commSize, std::vector<int> comm) { UNIMPLEMENTED(); }
+
+void CudaDMExecutor::all2all(int commSize, std::vector<int> comm) {
+    int numLocalQubit = numQubits - MyGlobalVars::bit / 2;
+    idx_t numElements = 1ll << (numLocalQubit * 2);
+    int numPart = numSlice / commSize;
+    idx_t partSize = numElements / numSlice;
+    partID.resize(numSlice * MyGlobalVars::localGPUs);
+    peer.resize(numSlice * MyGlobalVars::localGPUs);
+    for (int g = 0; g < MyGlobalVars::localGPUs; g++) {
+        checkCudaErrors(cudaSetDevice(g));
+        checkCudaErrors(cudaDeviceSynchronize());
+    }
+    for (int g = 0; g < MyGlobalVars::localGPUs; g++) {
+        checkCudaErrors(cudaSetDevice(g));
+        checkCudaErrors(cudaEventCreate(&MyGlobalVars::events[g]));
+        checkCudaErrors(cudaEventRecord(MyGlobalVars::events[g], MyGlobalVars::streams[g]));
+    }
+    for (int xr = 0; xr < commSize; xr++) {
+        for (int p = 0; p < numPart; p++) {
+// #if USE_MPI
+//             checkNCCLErrors(ncclGroupStart());
+// #endif
+            for (int a = 0; a < MyGlobalVars::numGPUs; a++) {
+                int b = a ^ xr;
+                if (comm[a] / MyGlobalVars::localGPUs != MyMPI::rank)
+                    continue;
+                int comm_a = comm[a] % MyGlobalVars::localGPUs;
+                int srcPart = a % commSize * numPart + p;
+                int dstPart = b % commSize * numPart + p;
+// #if USE_MPI
+//                 if (p == 0) {
+//                     checkCudaErrors(cudaStreamWaitEvent(
+//                         MyGlobalVars::streams_comm[comm_a],
+//                         MyGlobalVars::events[comm_a], 0)
+//                     );
+//                 }
+//                 checkCudaErrors(cudaSetDevice(comm_a));
+//                 if (a == b) {
+//                     checkCudaErrors(cudaMemcpyAsync(
+//                         deviceStateVec[comm_a] + dstPart * partSize,
+//                         deviceBuffer[comm_a] + srcPart * partSize,
+//                         partSize * sizeof(cpx),
+//                         cudaMemcpyDeviceToDevice,
+//                         MyGlobalVars::streams_comm[comm_a]
+//                     ));
+//                 } else if (a < b) {
+//                     checkNCCLErrors(ncclSend(
+//                         deviceBuffer[comm_a] + dstPart * partSize,
+//                         partSize * 2, // use double rather than complex
+//                         NCCL_FLOAT_TYPE,
+//                         comm[b],
+//                         MyGlobalVars::ncclComms[comm_a],
+//                         MyGlobalVars::streams_comm[comm_a]
+//                     ));
+//                     checkNCCLErrors(ncclRecv(
+//                         deviceStateVec[comm_a] + dstPart * partSize,
+//                         partSize * 2, // use double rather than complex
+//                         NCCL_FLOAT_TYPE,
+//                         comm[b],
+//                         MyGlobalVars::ncclComms[comm_a],
+//                         MyGlobalVars::streams_comm[comm_a]
+//                     ));
+//                 } else {
+//                     checkNCCLErrors(ncclRecv(
+//                         deviceStateVec[comm_a] + dstPart * partSize,
+//                         partSize * 2, // use double rather than complex
+//                         NCCL_FLOAT_TYPE,
+//                         comm[b],
+//                         MyGlobalVars::ncclComms[comm_a],
+//                         MyGlobalVars::streams_comm[comm_a]
+//                     ));
+//                     checkNCCLErrors(ncclSend(
+//                         deviceBuffer[comm_a] + dstPart * partSize,
+//                         partSize * 2, // use double rather than complex
+//                         NCCL_FLOAT_TYPE,
+//                         comm[b],
+//                         MyGlobalVars::ncclComms[comm_a],
+//                         MyGlobalVars::streams_comm[comm_a]
+//                     ));
+//                 }
+// #else
+                if (p == 0) {
+                    checkCudaErrors(cudaStreamWaitEvent(
+                        MyGlobalVars::streams_comm[comm[a]],
+                        MyGlobalVars::events[comm[b]], 0)
+                    );
+                }
+                checkCudaErrors(cudaMemcpyAsync(
+                    deviceStateVec[comm[a]] + dstPart * partSize,
+                    deviceBuffer[comm[b]] + srcPart * partSize,
+                    partSize * sizeof(cpx),
+                    cudaMemcpyDeviceToDevice,
+                    MyGlobalVars::streams_comm[comm[a]]
+                ));
+// #endif
+            }
+// #if USE_MPI
+//             checkNCCLErrors(ncclGroupEnd());
+// #endif
+        }
+    }
+}
 void CudaDMExecutor::launchPerGateGroup(std::vector<Gate>& gates, KernelGate hostGates[], const State& state, idx_t relatedQubits, int numLocalQubits) { UNIMPLEMENTED(); }
 void CudaDMExecutor::launchPerGateGroupSliced(std::vector<Gate>& gates, KernelGate hostGates[], idx_t relatedQubits, int numLocalQubits, int sliceID) { UNIMPLEMENTED(); }
 void CudaDMExecutor::launchBlasGroup(GateGroup& gg, int numLocalQubits) { UNIMPLEMENTED(); }
@@ -64,6 +171,14 @@ void CudaDMExecutor::deviceFinalize() {
 void CudaDMExecutor::sliceBarrier(int sliceID) { UNIMPLEMENTED(); }
 void CudaDMExecutor::eventBarrier() { UNIMPLEMENTED(); }
 void CudaDMExecutor::eventBarrierAll() { UNIMPLEMENTED(); }
-void CudaDMExecutor::allBarrier() { UNIMPLEMENTED(); }
+void CudaDMExecutor::allBarrier() {
+    for (int g = 0; g < MyGlobalVars::localGPUs; g++) {
+        checkCudaErrors(cudaStreamSynchronize(MyGlobalVars::streams[g]));
+        checkCudaErrors(cudaStreamSynchronize(MyGlobalVars::streams_comm[g]));
+    }
+#if USE_MPI
+    checkMPIErrors(MPI_Barrier(MPI_COMM_WORLD));
+#endif
+}
 
 }

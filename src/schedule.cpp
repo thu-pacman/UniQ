@@ -519,14 +519,15 @@ State LocalGroup::initState(const State& oldState, int numQubits, const std::vec
 }
 
 State LocalGroup::initStateInplace(const State& oldState, int numQubits, const std::vector<int>& newGlobals, idx_t overlapGlobals, int globalBit) {
-    int numLocalQubits = numQubits - MyGlobalVars::bit;
+    int localBit = MODE == 2 ? MyGlobalVars::bit / 2 : MyGlobalVars::bit;
+    int numLocalQubits = numQubits - localBit;
     auto pos = oldState.pos, layout = oldState.layout;
     int overlapCnt = bitCount(overlapGlobals);
     std::vector<int> oldGlobals;
-    for (int i = 0; i < MyGlobalVars::bit; i++) {
+    for (int i = 0; i < localBit; i++) {
         oldGlobals.push_back(layout[i + numLocalQubits]);
     }
-    assert(int(oldGlobals.size()) == MyGlobalVars::bit);
+    assert(int(oldGlobals.size()) == localBit);
     std::vector<int> newPos;
     for (size_t i = 0; i < oldGlobals.size(); i++) {
         if (oldGlobals[i] != newGlobals[i])
@@ -560,12 +561,19 @@ State LocalGroup::initStateInplace(const State& oldState, int numQubits, const s
         newComm.push_back(x.second);
     }
     a2aComm = newComm;
+#if MODE == 2
+    printf("TODO: check this function\n");
+#endif
     a2aCommSize = 1 << (MyGlobalVars::bit - overlapCnt);
     return newState;
 }
 
 State LocalGroup::initFirstGroupState(const State& oldState, int numQubits, const std::vector<int>& newGlobals) {
+#if MODE == 2
+    int numLocalQubits = numQubits - MyGlobalVars::bit / 2;
+#else
     int numLocalQubits = numQubits - MyGlobalVars::bit;
+#endif
     auto pos = oldState.pos, layout = oldState.layout;
     assert(overlapGroups.size() == 0);
     for (size_t i = 0; i < newGlobals.size(); i++) {

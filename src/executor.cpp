@@ -15,8 +15,13 @@ Executor::Executor(std::vector<cpx*> deviceStateVec, int numQubits, Schedule& sc
     deviceStateVec(deviceStateVec),
     numQubits(numQubits),
     schedule(schedule) {
+#if MODE == 2
+    int numLocalQubits = numQubits - MyGlobalVars::bit / 2;
+    idx_t numElements = idx_t(1) << (numLocalQubits * 2);
+#else
     int numLocalQubits = numQubits - MyGlobalVars::bit;
     idx_t numElements = idx_t(1) << numLocalQubits;
+#endif
     deviceBuffer.resize(MyGlobalVars::localGPUs);
     for (int g = 0; g < MyGlobalVars::localGPUs; g++) {
         deviceBuffer[g] = deviceStateVec[g] + numElements;        

@@ -9,7 +9,6 @@ void DMExecutor::run() {
     for (size_t lgID = 0; lgID < schedule.localGroups.size(); lgID ++) {
         auto& localGroup = schedule.localGroups[lgID];
         if (lgID > 0) {
-            UNIMPLEMENTED();
             if (INPLACE) {
                 this->inplaceAll2All(localGroup.a2aCommSize, localGroup.a2aComm, localGroup.state);
             } else {
@@ -20,6 +19,7 @@ void DMExecutor::run() {
                 // auto tag3 = std::chrono::system_clock::now();
                 // Logger::add("comm: transpose %d us all2all %d us\n", (int) std::chrono::duration_cast<std::chrono::microseconds>(tag2 - tag1).count(), (int) std::chrono::duration_cast<std::chrono::microseconds>(tag3 - tag2).count());
             }
+            this->allBarrier();
             this->setState(localGroup.state);
             if (schedule.localGroups[lgID].overlapGroups.size() > 0) {
                 UNIMPLEMENTED();
