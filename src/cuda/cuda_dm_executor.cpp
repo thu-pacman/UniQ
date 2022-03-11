@@ -75,9 +75,9 @@ void CudaDMExecutor::all2all(int commSize, std::vector<int> comm) {
     }
     for (int xr = 0; xr < commSize; xr++) {
         for (int p = 0; p < numPart; p++) {
-// #if USE_MPI
-//             checkNCCLErrors(ncclGroupStart());
-// #endif
+#if USE_MPI
+            checkNCCLErrors(ncclGroupStart());
+#endif
             for (int a = 0; a < MyGlobalVars::numGPUs; a++) {
                 int b = a ^ xr;
                 if (comm[a] / MyGlobalVars::localGPUs != MyMPI::rank)
@@ -85,58 +85,58 @@ void CudaDMExecutor::all2all(int commSize, std::vector<int> comm) {
                 int comm_a = comm[a] % MyGlobalVars::localGPUs;
                 int srcPart = a % commSize * numPart + p;
                 int dstPart = b % commSize * numPart + p;
-// #if USE_MPI
-//                 if (p == 0) {
-//                     checkCudaErrors(cudaStreamWaitEvent(
-//                         MyGlobalVars::streams_comm[comm_a],
-//                         MyGlobalVars::events[comm_a], 0)
-//                     );
-//                 }
-//                 checkCudaErrors(cudaSetDevice(comm_a));
-//                 if (a == b) {
-//                     checkCudaErrors(cudaMemcpyAsync(
-//                         deviceStateVec[comm_a] + dstPart * partSize,
-//                         deviceBuffer[comm_a] + srcPart * partSize,
-//                         partSize * sizeof(cpx),
-//                         cudaMemcpyDeviceToDevice,
-//                         MyGlobalVars::streams_comm[comm_a]
-//                     ));
-//                 } else if (a < b) {
-//                     checkNCCLErrors(ncclSend(
-//                         deviceBuffer[comm_a] + dstPart * partSize,
-//                         partSize * 2, // use double rather than complex
-//                         NCCL_FLOAT_TYPE,
-//                         comm[b],
-//                         MyGlobalVars::ncclComms[comm_a],
-//                         MyGlobalVars::streams_comm[comm_a]
-//                     ));
-//                     checkNCCLErrors(ncclRecv(
-//                         deviceStateVec[comm_a] + dstPart * partSize,
-//                         partSize * 2, // use double rather than complex
-//                         NCCL_FLOAT_TYPE,
-//                         comm[b],
-//                         MyGlobalVars::ncclComms[comm_a],
-//                         MyGlobalVars::streams_comm[comm_a]
-//                     ));
-//                 } else {
-//                     checkNCCLErrors(ncclRecv(
-//                         deviceStateVec[comm_a] + dstPart * partSize,
-//                         partSize * 2, // use double rather than complex
-//                         NCCL_FLOAT_TYPE,
-//                         comm[b],
-//                         MyGlobalVars::ncclComms[comm_a],
-//                         MyGlobalVars::streams_comm[comm_a]
-//                     ));
-//                     checkNCCLErrors(ncclSend(
-//                         deviceBuffer[comm_a] + dstPart * partSize,
-//                         partSize * 2, // use double rather than complex
-//                         NCCL_FLOAT_TYPE,
-//                         comm[b],
-//                         MyGlobalVars::ncclComms[comm_a],
-//                         MyGlobalVars::streams_comm[comm_a]
-//                     ));
-//                 }
-// #else
+#if USE_MPI
+                if (p == 0) {
+                    checkCudaErrors(cudaStreamWaitEvent(
+                        MyGlobalVars::streams_comm[comm_a],
+                        MyGlobalVars::events[comm_a], 0)
+                    );
+                }
+                checkCudaErrors(cudaSetDevice(comm_a));
+                if (a == b) {
+                    checkCudaErrors(cudaMemcpyAsync(
+                        deviceStateVec[comm_a] + dstPart * partSize,
+                        deviceBuffer[comm_a] + srcPart * partSize,
+                        partSize * sizeof(cpx),
+                        cudaMemcpyDeviceToDevice,
+                        MyGlobalVars::streams_comm[comm_a]
+                    ));
+                } else if (a < b) {
+                    checkNCCLErrors(ncclSend(
+                        deviceBuffer[comm_a] + dstPart * partSize,
+                        partSize * 2, // use double rather than complex
+                        NCCL_FLOAT_TYPE,
+                        comm[b],
+                        MyGlobalVars::ncclComms[comm_a],
+                        MyGlobalVars::streams_comm[comm_a]
+                    ));
+                    checkNCCLErrors(ncclRecv(
+                        deviceStateVec[comm_a] + dstPart * partSize,
+                        partSize * 2, // use double rather than complex
+                        NCCL_FLOAT_TYPE,
+                        comm[b],
+                        MyGlobalVars::ncclComms[comm_a],
+                        MyGlobalVars::streams_comm[comm_a]
+                    ));
+                } else {
+                    checkNCCLErrors(ncclRecv(
+                        deviceStateVec[comm_a] + dstPart * partSize,
+                        partSize * 2, // use double rather than complex
+                        NCCL_FLOAT_TYPE,
+                        comm[b],
+                        MyGlobalVars::ncclComms[comm_a],
+                        MyGlobalVars::streams_comm[comm_a]
+                    ));
+                    checkNCCLErrors(ncclSend(
+                        deviceBuffer[comm_a] + dstPart * partSize,
+                        partSize * 2, // use double rather than complex
+                        NCCL_FLOAT_TYPE,
+                        comm[b],
+                        MyGlobalVars::ncclComms[comm_a],
+                        MyGlobalVars::streams_comm[comm_a]
+                    ));
+                }
+#else
                 if (p == 0) {
                     checkCudaErrors(cudaStreamWaitEvent(
                         MyGlobalVars::streams_comm[comm[a]],
@@ -150,11 +150,11 @@ void CudaDMExecutor::all2all(int commSize, std::vector<int> comm) {
                     cudaMemcpyDeviceToDevice,
                     MyGlobalVars::streams_comm[comm[a]]
                 ));
-// #endif
+#endif
             }
-// #if USE_MPI
-//             checkNCCLErrors(ncclGroupEnd());
-// #endif
+#if USE_MPI
+            checkNCCLErrors(ncclGroupEnd());
+#endif
         }
     }
 }

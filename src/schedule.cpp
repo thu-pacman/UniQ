@@ -500,7 +500,9 @@ State LocalGroup::initState(const State& oldState, int numQubits, const std::vec
 #endif
     std::vector<std::pair<int, int>> newCommPair;
 #if MODE == 2
+#ifdef SHOW_SCHEDULE
     if (overlapGlobals > 0) printf("[warning] overlap global = %x, not verified\n", (int) overlapGlobals);
+#endif
     overlapGlobals = duplicate_bit(overlapGlobals);
 #endif
     for (int i = 0; i < MyGlobalVars::numGPUs; i++) {
