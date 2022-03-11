@@ -298,14 +298,13 @@ LocalGroup AdvanceCompiler::run(State& state, bool usePerGate, bool useBLAS, int
             memset(related, 0, sizeof(related));
             fillFull(full, blasForbid);
             ggIdx = getGroupOpt(full, related, false, blasSize, localQubits | blasForbid);
-            GateGroup gg;
             ggBackend = Backend::BLAS;
         } else {
             UNREACHABLE();
         }
         if (ggBackend == Backend::PerGate) {
             for (auto& x: ggIdx)
-                gg.addGate(remainGates[x], -1ll, true);
+                gg.addGate(remainGates[x], -1ll, enableGlobal);
 #ifdef LOG_EVALUATOR
             Logger::add("perf pergate : %f,", Evaluator::getInstance() -> perfPerGate(numQubits, &gg));
 #endif

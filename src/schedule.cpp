@@ -121,6 +121,7 @@ void Schedule::dump(int numQubits) {
         }
         printf("\n");
         for (auto& gg: lg.fullGroups) {
+            printf("%llx ", gg.relatedQubits);
             switch (gg.backend) {
                 case Backend::BLAS: printf("<BLAS>\n"); break;
                 case Backend::PerGate: printf("<PerGate>\n"); break;

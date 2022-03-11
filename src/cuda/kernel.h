@@ -38,6 +38,7 @@ void launchExecutor(int gridDim, cpx* deviceStateVec, unsigned int* threadBias, 
 // kernelDM
 void copyGatesToGlobal(KernelGate* hostGates, int numGates, cudaStream_t& stream, int gpuID);
 void launchDMExecutor(int gridDim, cpx* deviceStateVec, unsigned int* threadBias, int numLocalQubits, int numGates, unsigned int blockHot, unsigned int enumerate, cudaStream_t& stream, int gpuID);
+void launchDMExecutorSerial(cpx* deviceStateVec_, int numLocalQubits, const std::vector<Gate>& gates);
 void dmAllocGate(int localGPUs);
 // kernelUtils
 void isnanTest(cpx* data, int n, cudaStream_t& stream);

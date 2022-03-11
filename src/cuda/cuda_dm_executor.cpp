@@ -22,6 +22,7 @@ void CudaDMExecutor::launchPerGateGroupDM(std::vector<Gate>& gates, KernelGate h
         copyGatesToGlobal(hostGates, gates.size(), MyGlobalVars::streams[g], g);
         launchDMExecutor(gridDim, deviceStateVec[g], threadBias[g], numLocalQubits, gates.size(), blockHot, enumerate, 
         MyGlobalVars::streams[g], g);
+        // launchDMExecutorSerial(deviceStateVec[g], numLocalQubits, gates);
     }
 }
 
