@@ -52,8 +52,30 @@ void DMExecutor::applyPerGateGroup(GateGroup& gg) {
         int globalGPUID = MyMPI::rank * MyGlobalVars::localGPUs + g;
         for (size_t i = 0; i < gates.size(); i++) {
             hostGates[g * gates.size() + i] = getGate(gates[i], globalGPUID, numLocalQubits, relatedLogicQb, toID);
-            // hostGates[i].addError() // TODO
+            addError(&hostGates[g * gates.size() + i], gates[i]);
         }
     }
     launchPerGateGroupDM(gates, hostGates, state, relatedQubits, numLocalQubits);
+}
+
+
+void DMExecutor::addError(KernelGate* gate, const Gate& g) {
+#if MODE == 2
+    gate->err_len_control = g.controlErrors.size();
+    for (int i = 0; i < gate->err_len_control; i++) {
+        gate->errs_control[i][0][0] = g.controlErrors[i].mat00;
+        gate->errs_control[i][0][1] = g.controlErrors[i].mat01;
+        gate->errs_control[i][1][0] = g.controlErrors[i].mat10;
+        gate->errs_control[i][1][1] = g.controlErrors[i].mat11;
+    }
+    gate->err_len_target = g.targetErrors.size();
+    for (int i = 0; i < gate->err_len_target; i++) {
+        gate->errs_target[i][0][0] = g.targetErrors[i].mat00;
+        gate->errs_target[i][0][1] = g.targetErrors[i].mat01;
+        gate->errs_target[i][1][0] = g.targetErrors[i].mat10;
+        gate->errs_target[i][1][1] = g.targetErrors[i].mat11;
+    }
+#else
+    UNREACHABLE();
+#endif
 }

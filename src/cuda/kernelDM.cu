@@ -186,6 +186,116 @@ __device__ void doComputeDM(int numGates, KernelGate* deviceGates) {
                 }
             }
         }
+        // apply error
+#if MODE == 2
+        __syncthreads();
+        if (deviceGates[i].err_len_target > 0) {
+            int m = 1 << (LOCAL_QUBIT_SIZE * 2 - 2);
+            int qid = deviceGates[i].targetQubit * 2;
+            int numErrors = deviceGates[i].err_len_target;
+            for (int j = threadIdx.x; j < m; j += blockSize) {
+                int s00 = ((j >> qid) << (qid + 2)) | (j & ((1 << qid) - 1));
+                int s01 = s00 | (1 << qid);
+                int s10 = s00 | (1 << (qid + 1));
+                int s11 = s01 | s10;
+                cuCpx val00 = shm[s00], val01 = shm[s01], val10 = shm[s10], val11 = shm[s11];
+                cuCpx sum00 = make_cuComplex(0.0, 0.0), sum01 = make_cuComplex(0.0, 0.0), sum10 = make_cuComplex(0.0, 0.0), sum11 = make_cuComplex(0.0, 0.0);
+                for (int k = 0; k < numErrors; k++) {
+                    cuCpx (*e)[2] = reinterpret_cast<cuCpx(*)[2]>(deviceGates[i].errs_target[k]);
+                    cuCpx w00 = make_cuComplex(
+                        COMPLEX_MULTIPLY_REAL(e[0][0], val00) + COMPLEX_MULTIPLY_REAL(e[0][1], val10),
+                        COMPLEX_MULTIPLY_IMAG(e[0][0], val00) + COMPLEX_MULTIPLY_IMAG(e[0][1], val10)
+                    ); // e.mat00 * val00 + e.mat01 * val10;
+                    cuCpx w01 = make_cuComplex(
+                        COMPLEX_MULTIPLY_REAL(e[0][0], val01) + COMPLEX_MULTIPLY_REAL(e[0][1], val11),
+                        COMPLEX_MULTIPLY_IMAG(e[0][0], val01) + COMPLEX_MULTIPLY_IMAG(e[0][1], val11)
+                    ); // e.mat00 * val01 + e.mat01 * val11;
+                    cuCpx w10 = make_cuComplex(
+                        COMPLEX_MULTIPLY_REAL(e[1][0], val00) + COMPLEX_MULTIPLY_REAL(e[1][1], val10),
+                        COMPLEX_MULTIPLY_IMAG(e[1][0], val00) + COMPLEX_MULTIPLY_IMAG(e[1][1], val10)
+                    ); // e.mat10 * val00 + e.mat11 * val10;
+                    cuCpx w11 = make_cuComplex(
+                        COMPLEX_MULTIPLY_REAL(e[1][0], val01) + COMPLEX_MULTIPLY_REAL(e[1][1], val11),
+                        COMPLEX_MULTIPLY_IMAG(e[1][0], val01) + COMPLEX_MULTIPLY_IMAG(e[1][1], val11)
+                    ); // e.mat10 * val01 + e.mat11 * val11;
+
+                    sum00 = make_cuComplex(
+                        sum00.x + COMPLEX_MULTIPLY_REAL_ND(w00, e[0][0]) + COMPLEX_MULTIPLY_REAL_ND(w01, e[0][1]),
+                        sum00.y + COMPLEX_MULTIPLY_IMAG_ND(w00, e[0][0]) + COMPLEX_MULTIPLY_IMAG_ND(w01, e[0][1])
+                    ); // sum00 + w00 * e.mat00 + w01 * e.mat01;
+                    sum01 = make_cuComplex(
+                        sum01.x + COMPLEX_MULTIPLY_REAL_ND(w00, e[1][0]) + COMPLEX_MULTIPLY_REAL_ND(w01, e[1][1]),
+                        sum01.y + COMPLEX_MULTIPLY_IMAG_ND(w00, e[1][0]) + COMPLEX_MULTIPLY_IMAG_ND(w01, e[1][1])
+                    ); // sum01 + w00 * e.mat10 + w01 * e.mat11;
+                    sum10 = make_cuComplex(
+                        sum10.x + COMPLEX_MULTIPLY_REAL_ND(w10, e[0][0]) + COMPLEX_MULTIPLY_REAL_ND(w11, e[0][1]),
+                        sum10.y + COMPLEX_MULTIPLY_IMAG_ND(w10, e[0][0]) + COMPLEX_MULTIPLY_IMAG_ND(w11, e[0][1])
+                    ); // sum10 + w10 * e.mat00 + w11 * e.mat01;
+                    sum11 = make_cuComplex(
+                        sum11.x + COMPLEX_MULTIPLY_REAL_ND(w10, e[1][0]) + COMPLEX_MULTIPLY_REAL_ND(w11, e[1][1]),
+                        sum11.y + COMPLEX_MULTIPLY_IMAG_ND(w10, e[1][0]) + COMPLEX_MULTIPLY_IMAG_ND(w11, e[1][1])
+                    ); // sum11 + w10 * e.mat10 + w11 * e.mat11;
+                }
+                shm[s00] = sum00; shm[s01] = sum01; shm[s10] = sum10; shm[s11] = sum11;
+            }
+        }
+        __syncthreads();
+        if (deviceGates[i].err_len_control > 0) {
+            int m = 1 << (LOCAL_QUBIT_SIZE * 2 - 2);
+            int qid = deviceGates[i].controlQubit == -3? deviceGates[i].encodeQubit: deviceGates[i].controlQubit;
+            // if (blockIdx.x == 0 && threadIdx.x == 0) printf("qid = %d len %d\n", qid, deviceGates[i].err_len_control);
+            qid *= 2;
+            int numErrors = deviceGates[i].err_len_control;
+            for (int j = threadIdx.x; j < m; j += blockSize) {
+                int s00 = ((j >> qid) << (qid + 2)) | (j & ((1 << qid) - 1));
+                int s01 = s00 | (1 << qid);
+                int s10 = s00 | (1 << (qid + 1));
+                int s11 = s01 | s10;
+                // if (blockIdx.x == 0 && threadIdx.x == 0) printf("idx %d %d %d %d\n", s00, s01, s10, s11);
+                cuCpx val00 = shm[s00], val01 = shm[s01], val10 = shm[s10], val11 = shm[s11];
+                // if (blockIdx.x == 0 && threadIdx.x == 0) printf("load %lf %lf %lf %lf\n", val00.x, val01.x, val10.x, val11.x);
+                cuCpx sum00 = make_cuComplex(0.0, 0.0), sum01 = make_cuComplex(0.0, 0.0), sum10 = make_cuComplex(0.0, 0.0), sum11 = make_cuComplex(0.0, 0.0);
+                for (int k = 0; k < numErrors; k++) {
+                    cuCpx (*e)[2] = reinterpret_cast<cuCpx(*)[2]>(deviceGates[i].errs_control[k]);
+                    cuCpx w00 = make_cuComplex(
+                        COMPLEX_MULTIPLY_REAL(e[0][0], val00) + COMPLEX_MULTIPLY_REAL(e[0][1], val10),
+                        COMPLEX_MULTIPLY_IMAG(e[0][0], val00) + COMPLEX_MULTIPLY_IMAG(e[0][1], val10)
+                    ); // e.mat00 * val00 + e.mat01 * val10;
+                    cuCpx w01 = make_cuComplex(
+                        COMPLEX_MULTIPLY_REAL(e[0][0], val01) + COMPLEX_MULTIPLY_REAL(e[0][1], val11),
+                        COMPLEX_MULTIPLY_IMAG(e[0][0], val01) + COMPLEX_MULTIPLY_IMAG(e[0][1], val11)
+                    ); // e.mat00 * val01 + e.mat01 * val11;
+                    cuCpx w10 = make_cuComplex(
+                        COMPLEX_MULTIPLY_REAL(e[1][0], val00) + COMPLEX_MULTIPLY_REAL(e[1][1], val10),
+                        COMPLEX_MULTIPLY_IMAG(e[1][0], val00) + COMPLEX_MULTIPLY_IMAG(e[1][1], val10)
+                    ); // e.mat10 * val00 + e.mat11 * val10;
+                    cuCpx w11 = make_cuComplex(
+                        COMPLEX_MULTIPLY_REAL(e[1][0], val01) + COMPLEX_MULTIPLY_REAL(e[1][1], val11),
+                        COMPLEX_MULTIPLY_IMAG(e[1][0], val01) + COMPLEX_MULTIPLY_IMAG(e[1][1], val11)
+                    ); // e.mat10 * val01 + e.mat11 * val11;
+
+                    sum00 = make_cuComplex(
+                        sum00.x + COMPLEX_MULTIPLY_REAL_ND(w00, e[0][0]) + COMPLEX_MULTIPLY_REAL_ND(w01, e[0][1]),
+                        sum00.y + COMPLEX_MULTIPLY_IMAG_ND(w00, e[0][0]) + COMPLEX_MULTIPLY_IMAG_ND(w01, e[0][1])
+                    ); // sum00 + w00 * e.mat00 + w01 * e.mat01;
+                    sum01 = make_cuComplex(
+                        sum01.x + COMPLEX_MULTIPLY_REAL_ND(w00, e[1][0]) + COMPLEX_MULTIPLY_REAL_ND(w01, e[1][1]),
+                        sum01.y + COMPLEX_MULTIPLY_IMAG_ND(w00, e[1][0]) + COMPLEX_MULTIPLY_IMAG_ND(w01, e[1][1])
+                    ); // sum01 + w00 * e.mat10 + w01 * e.mat11;
+                    sum10 = make_cuComplex(
+                        sum10.x + COMPLEX_MULTIPLY_REAL_ND(w10, e[0][0]) + COMPLEX_MULTIPLY_REAL_ND(w11, e[0][1]),
+                        sum10.y + COMPLEX_MULTIPLY_IMAG_ND(w10, e[0][0]) + COMPLEX_MULTIPLY_IMAG_ND(w11, e[0][1])
+                    ); // sum10 + w10 * e.mat00 + w11 * e.mat01;
+                    sum11 = make_cuComplex(
+                        sum11.x + COMPLEX_MULTIPLY_REAL_ND(w10, e[1][0]) + COMPLEX_MULTIPLY_REAL_ND(w11, e[1][1]),
+                        sum11.y + COMPLEX_MULTIPLY_IMAG_ND(w10, e[1][0]) + COMPLEX_MULTIPLY_IMAG_ND(w11, e[1][1])
+                    ); // sum11 + w10 * e.mat10 + w11 * e.mat11;
+                }
+                // if (blockIdx.x == 0 && threadIdx.x == 0) printf("result %lf %lf %lf %lf\n", sum00.x, sum01.x, sum10.x, sum11.x);
+                shm[s00] = sum00; shm[s01] = sum01; shm[s10] = sum10; shm[s11] = sum11;
+            }
+        }
+#endif
         __syncthreads();
     }
 }

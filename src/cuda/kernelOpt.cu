@@ -16,8 +16,6 @@ static __shared__ idx_t blockBias;
 __device__ __constant__ value_t recRoot2 = 0.70710678118654752440084436210485; // more elegant way?
 #if MODE != 2
 __constant__ KernelGate deviceGates[MAX_GATE];
-#else
-__device__ KernelGate deviceGates[1]; // for compile
 #endif
 
 std::vector<int*> loIdx_device;
@@ -217,6 +215,7 @@ case GateType::ID: { \
     break; \
 }
 
+#if MODE != 2
 template <unsigned int blockSize>
 __device__ void doCompute(int numGates, int* loArr, int* shiftAt) {
     for (int i = 0; i < numGates; i++) {
@@ -483,6 +482,8 @@ __global__ void run(cuCpx* a, unsigned int* threadBias, int* loArr, int* shiftAt
     saveData(a, threadBias, enumerate);
 }
 
+#endif
+
 }
 
 #if GPU_BACKEND == 1 || GPU_BACKEND == 3 || GPU_BACKEND == 4 || GPU_BACKEND == 5
@@ -549,10 +550,18 @@ void initControlIdx() {
 #endif
 
 void copyGatesToSymbol(KernelGate* hostGates, int numGates, cudaStream_t& stream, int gpuID) {
+#if MODE != 2
     checkCudaErrors(cudaMemcpyToSymbolAsync(CudaSV::deviceGates, hostGates + gpuID * numGates, sizeof(KernelGate) * numGates, 0, cudaMemcpyDefault, stream));
+#else
+    UNREACHABLE();
+#endif
 }
 
 void launchExecutor(int gridDim, cpx* deviceStateVec, unsigned int* threadBias, int numLocalQubits, int numGates, unsigned int blockHot, unsigned int enumerate, cudaStream_t& stream, int gpuID) {
+#if MODE != 2
     CudaSV::run<1<<THREAD_DEP><<<gridDim, 1<<THREAD_DEP, 0, stream>>>
         (reinterpret_cast<cuCpx*>(deviceStateVec), threadBias, CudaSV::loIdx_device[gpuID], CudaSV::shiftAt_device[gpuID], numLocalQubits, numGates, blockHot, enumerate);
+#else
+    UNREACHABLE();
+#endif
 }

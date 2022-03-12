@@ -7,5 +7,6 @@ public:
     void run();
 protected:
     void applyPerGateGroup(GateGroup& gg) override;
+    void addError(KernelGate* gate, const Gate& g);
     virtual void launchPerGateGroupDM(std::vector<Gate>& gates, KernelGate hostGates[], const State& state, idx_t relatedQubits, int numLocalQubits) = 0;
 };

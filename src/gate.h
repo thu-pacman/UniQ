@@ -109,8 +109,8 @@ struct KernelGate {
 
 #if MODE == 2
     int err_len_control, err_len_target;
-    value_t errs_control[MAX_ERROR_LEN][2][2][2]; // channel, mat_row, mat_col, real/imag
-    value_t errs_target[MAX_ERROR_LEN][2][2][2];
+    cpx errs_control[MAX_ERROR_LEN][2][2]; // channel, mat_row, mat_col, real/imag
+    cpx errs_target[MAX_ERROR_LEN][2][2];
     KernelGate(
         GateType type_,
         idx_t encodeQubit_, 
@@ -124,8 +124,6 @@ struct KernelGate {
         r00(mat[0][0].real()), i00(mat[0][0].imag()), r01(mat[0][1].real()), i01(mat[0][1].imag()),
         r10(mat[1][0].real()), i10(mat[1][0].imag()), r11(mat[1][1].real()), i11(mat[1][1].imag()),
         err_len_control(0), err_len_target(0) {}
-
-    void addError(const std::vector<Error>& controlErrors, const std::vector<Error>& targetErrors);
 
 #else
     KernelGate(
