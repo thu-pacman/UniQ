@@ -31,11 +31,16 @@ __global__ void whileTrueKernel() {
 void isnanTest(cpx* data, int n, cudaStream_t& stream) {
     isnanTestKernel<<<1, 32, 0, stream>>>(reinterpret_cast<cuCpx*>(data), n / 32);
 }
-void printVector(cpx* data, int n, cudaStream_t& stream) {
-    // printVectorKernel<<<1, 1, 0, stream>>>(reinterpret_cast<cuCpx*>(data), n);
+
+void printVector(cuCpx* data, int n, cudaStream_t& stream) {
+    // printVectorKernel<<<1, 1, 0, stream>>>(data, n);
     static int task_id = 0;
     task_id ++;
-    printVectorParallel<<<(n + 127)/128, 128, 0, stream>>>(reinterpret_cast<cuCpx*>(data), n, task_id);
+    printVectorParallel<<<(n + 127)/128, 128, 0, stream>>>(data, n, task_id);
+}
+
+void printVector(cpx* data, int n, cudaStream_t& stream) {
+    printVector(reinterpret_cast<cuCpx*>(data), n, stream);
 }
 
 void whileTrue() {

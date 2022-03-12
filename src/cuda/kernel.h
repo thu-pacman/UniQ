@@ -16,6 +16,18 @@
 #include "compiler.h"
 #include "circuit.h"
 
+#ifdef USE_DOUBLE
+    typedef cuDoubleComplex cuCpx;
+    #define make_cuComplex make_cuDoubleComplex
+    #define cublasGEMM cublasZgemm
+    #define NCCL_FLOAT_TYPE ncclDouble
+#else
+    typedef cuFloatComplex cuCpx;
+    #define make_cuComplex make_cuFloatComplex
+    #define cublasGEMM cublasCgemm
+    #define NCCL_FLOAT_TYPE ncclFloat
+#endif
+
 // kernelSimple
 void kernelExecSimple(cpx* deviceStateVec, int numQubits, const std::vector<Gate> & gates);
 value_t kernelMeasure(cpx* deviceStateVec, int numQubits, int targetQubit);
@@ -43,6 +55,7 @@ void dmAllocGate(int localGPUs);
 // kernelUtils
 void isnanTest(cpx* data, int n, cudaStream_t& stream);
 void printVector(cpx* data, int n, cudaStream_t& stream);
+void printVector(cuCpx* data, int n, cudaStream_t& stream);
 void whileTrue();
 
 static const char *cublasGetErrorString(cublasStatus_t error) {
@@ -131,17 +144,5 @@ namespace MyGlobalVars {
     extern std::unique_ptr<ncclComm_t[]> ncclComms;
 #endif
 }
-
-#ifdef USE_DOUBLE
-    typedef cuDoubleComplex cuCpx;
-    #define make_cuComplex make_cuDoubleComplex
-    #define cublasGEMM cublasZgemm
-    #define NCCL_FLOAT_TYPE ncclDouble
-#else
-    typedef cuFloatComplex cuCpx;
-    #define make_cuComplex make_cuFloatComplex
-    #define cublasGEMM cublasCgemm
-    #define NCCL_FLOAT_TYPE ncclFloat
-#endif
 
 const int THREAD_DEP = THREAD_DEP_DEFINED; // 1 << THREAD_DEP threads per block

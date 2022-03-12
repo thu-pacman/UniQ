@@ -19,10 +19,10 @@ void CudaDMExecutor::launchPerGateGroupDM(std::vector<Gate>& gates, KernelGate h
     idx_t gridDim = idx_t(1) << (numLocalQubits - LOCAL_QUBIT_SIZE) * 2;
     for (int g = 0; g < MyGlobalVars::localGPUs; g++) {
         checkCudaErrors(cudaSetDevice(g));
-        copyGatesToGlobal(hostGates, gates.size(), MyGlobalVars::streams[g], g);
-        launchDMExecutor(gridDim, deviceStateVec[g], threadBias[g], numLocalQubits, gates.size(), blockHot, enumerate, 
-        MyGlobalVars::streams[g], g);
-        // launchDMExecutorSerial(deviceStateVec[g], numLocalQubits, gates);
+        // copyGatesToGlobal(hostGates, gates.size(), MyGlobalVars::streams[g], g);
+        // launchDMExecutor(gridDim, deviceStateVec[g], threadBias[g], numLocalQubits, gates.size(), blockHot, enumerate, 
+        // MyGlobalVars::streams[g], g);
+        launchDMExecutorSerial(deviceStateVec[g], numLocalQubits, gates);
     }
 }
 

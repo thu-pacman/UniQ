@@ -12,7 +12,15 @@ struct ResultItem {
     idx_t idx;
     cpx amp;
     void print(int numQubits);
-    bool operator < (const ResultItem& b) { return idx < b.idx; }
+    bool operator < (const ResultItem& b) {
+#if MODE == 2
+        const idx_t mask = 0xaaaaaaaaaaaaaaaall;
+        idx_t aa = idx & mask, bb = b.idx & mask;
+        return aa == bb? (idx - aa) < (b.idx - bb) : aa < bb;
+#else
+        return idx < b.idx;
+#endif
+    }
 };
 
 class Circuit {

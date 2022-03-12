@@ -19,6 +19,10 @@ std::vector<KernelGate*> deviceGatePointers;
 #define COMPLEX_MULTIPLY_REAL(v0, v1) (v0.x * v1.x - v0.y * v1.y)
 #define COMPLEX_MULTIPLY_IMAG(v0, v1) (v0.x * v1.y + v0.y * v1.x)
 
+// ND: v1.y -> -v1.y
+#define COMPLEX_MULTIPLY_REAL_ND(v0, v1) (v0.x * v1.x + v0.y * v1.y)
+#define COMPLEX_MULTIPLY_IMAG_ND(v0, v1) (-v0.x * v1.y + v0.y * v1.x)
+
 template <unsigned int blockSize>
 __device__ void doComputeDM(int numGates, KernelGate* deviceGates) {
     for (int i = 0; i < numGates; i++) {
@@ -273,7 +277,7 @@ __global__ void run_dm_dual(cuCpx* a, int targetQubit1, int targetQubit2, const 
     int tid = blockIdx.x * blockDim.x + threadIdx.x;
     int smallQubit = min(targetQubit1, targetQubit2);
     int largeQubit = max(targetQubit1, targetQubit2);
-    int s00 = ((tid >> smallQubit) << (smallQubit + 1)) | (tid &((1 << smallQubit) - 1));
+    int s00 = ((tid >> smallQubit) << (smallQubit + 1)) | (tid & ((1 << smallQubit) - 1));
     s00 = ((s00 >> largeQubit) << (largeQubit + 1)) | (s00 & ((1 << largeQubit) - 1));
     int s01 = s00 | (1 << targetQubit2);
     int s10 = s00 | (1 << targetQubit1);
@@ -302,6 +306,68 @@ __global__ void run_dm_dual(cuCpx* a, int targetQubit1, int targetQubit2, const 
     );
 }
 
+struct CudaError {
+    CudaError() = default;
+    GateType type;
+    cuCpx mat00, mat01, mat10, mat11;
+    CudaError& operator = (const Error& other) {
+        type = other.type;
+        mat00 = make_cuComplex(other.mat00.real(), other.mat00.imag());
+        mat01 = make_cuComplex(other.mat01.real(), other.mat01.imag());
+        mat10 = make_cuComplex(other.mat10.real(), other.mat10.imag());
+        mat11 = make_cuComplex(other.mat11.real(), other.mat11.imag());
+        return *this;
+    }
+};
+
+__global__ void apply_error_single(cuCpx* a, int targetQubit, const CudaError* error, size_t numErrors) {
+    int tid = blockIdx.x * blockDim.x + threadIdx.x;
+    int qid = targetQubit * 2;
+    int s00 = ((tid >> qid) << (qid + 2)) | (tid & ((1 << qid) - 1));
+    int s01 = s00 | (1 << qid);
+    int s10 = s00 | (1 << (qid + 1));
+    int s11 = s01 | s10;
+    cuCpx val00 = a[s00], val01 = a[s01], val10 = a[s10], val11 = a[s11];
+    cuCpx sum00 = make_cuComplex(0.0, 0.0), sum01 = make_cuComplex(0.0, 0.0), sum10 = make_cuComplex(0.0, 0.0), sum11 = make_cuComplex(0.0, 0.0);
+    for (int i = 0; i < numErrors; i++) {
+        const CudaError& e = error[i];
+        cuCpx w00 = make_cuComplex(
+            COMPLEX_MULTIPLY_REAL(e.mat00, val00) + COMPLEX_MULTIPLY_REAL(e.mat01, val10),
+            COMPLEX_MULTIPLY_IMAG(e.mat00, val00) + COMPLEX_MULTIPLY_IMAG(e.mat01, val10)
+        ); // e.mat00 * val00 + e.mat01 * val10;
+        cuCpx w01 = make_cuComplex(
+            COMPLEX_MULTIPLY_REAL(e.mat00, val01) + COMPLEX_MULTIPLY_REAL(e.mat01, val11),
+            COMPLEX_MULTIPLY_IMAG(e.mat00, val01) + COMPLEX_MULTIPLY_IMAG(e.mat01, val11)
+        ); // e.mat00 * val01 + e.mat01 * val11;
+        cuCpx w10 = make_cuComplex(
+            COMPLEX_MULTIPLY_REAL(e.mat10, val00) + COMPLEX_MULTIPLY_REAL(e.mat11, val10),
+            COMPLEX_MULTIPLY_IMAG(e.mat10, val00) + COMPLEX_MULTIPLY_IMAG(e.mat11, val10)
+        ); // e.mat10 * val00 + e.mat11 * val10;
+        cuCpx w11 = make_cuComplex(
+            COMPLEX_MULTIPLY_REAL(e.mat10, val01) + COMPLEX_MULTIPLY_REAL(e.mat11, val11),
+            COMPLEX_MULTIPLY_IMAG(e.mat10, val01) + COMPLEX_MULTIPLY_IMAG(e.mat11, val11)
+        ); // e.mat10 * val01 + e.mat11 * val11;
+
+        sum00 = make_cuComplex(
+            sum00.x + COMPLEX_MULTIPLY_REAL_ND(w00, e.mat00) + COMPLEX_MULTIPLY_REAL_ND(w01, e.mat01),
+            sum00.y + COMPLEX_MULTIPLY_IMAG_ND(w00, e.mat00) + COMPLEX_MULTIPLY_IMAG_ND(w01, e.mat01)
+        ); // sum00 + w00 * e.mat00 + w01 * e.mat01;
+        sum01 = make_cuComplex(
+            sum01.x + COMPLEX_MULTIPLY_REAL_ND(w00, e.mat10) + COMPLEX_MULTIPLY_REAL_ND(w01, e.mat11),
+            sum01.y + COMPLEX_MULTIPLY_IMAG_ND(w00, e.mat10) + COMPLEX_MULTIPLY_IMAG_ND(w01, e.mat11)
+        ); // sum01 + w00 * e.mat10 + w01 * e.mat11;
+        sum10 = make_cuComplex(
+            sum10.x + COMPLEX_MULTIPLY_REAL_ND(w10, e.mat00) + COMPLEX_MULTIPLY_REAL_ND(w11, e.mat01),
+            sum10.y + COMPLEX_MULTIPLY_IMAG_ND(w10, e.mat00) + COMPLEX_MULTIPLY_IMAG_ND(w11, e.mat01)
+        ); // sum10 + w10 * e.mat00 + w11 * e.mat01;
+        sum11 = make_cuComplex(
+            sum11.x + COMPLEX_MULTIPLY_REAL_ND(w10, e.mat10) + COMPLEX_MULTIPLY_REAL_ND(w11, e.mat11),
+            sum11.y + COMPLEX_MULTIPLY_IMAG_ND(w10, e.mat10) + COMPLEX_MULTIPLY_IMAG_ND(w11, e.mat11)
+        ); // sum11 + w10 * e.mat10 + w11 * e.mat11;
+    }
+    a[s00] = sum00; a[s01] = sum01; a[s10] = sum10; a[s11] = sum11;
+}
+
 }
 
 void copyGatesToGlobal(KernelGate* hostGates, int numGates, cudaStream_t& stream, int gpuID) {
@@ -313,13 +379,24 @@ void launchDMExecutor(int gridDim, cpx* deviceStateVec, unsigned int* threadBias
         (reinterpret_cast<cuCpx*>(deviceStateVec), threadBias, CudaDM::deviceGatePointers[gpuID], numLocalQubits, numGates, blockHot, enumerate);
 }
 
+void apply_errors(cuCpx* deviceStateVec, CudaDM::CudaError* errors, idx_t nVec, int targetQubit, const std::vector<Error>& targetErrors) {
+    CudaDM::CudaError hostErr[targetErrors.size()];
+    for (int i = 0; i < (int) targetErrors.size(); i++)
+        hostErr[i] = targetErrors[i];
+    checkCudaErrors(cudaMemcpy(errors, hostErr, targetErrors.size() * sizeof(CudaDM::CudaError), cudaMemcpyHostToDevice));
+    CudaDM::apply_error_single<<<nVec >> (THREAD_DEP + 2), 1 << THREAD_DEP>>>(
+        deviceStateVec, targetQubit, errors, targetErrors.size()
+    );
+}
+
 void launchDMExecutorSerial(cpx* deviceStateVec_, int numLocalQubits, const std::vector<Gate>& gates) {
     checkCudaErrors(cudaDeviceSynchronize());
     cuCpx* deviceStateVec = reinterpret_cast<cuCpx*>(deviceStateVec_);
     // printf("numLocalQubits %d\n", numLocalQubits);
     idx_t nVec = idx_t(1) << (numLocalQubits * 2);
+    CudaDM::CudaError* errors;
+    checkCudaErrors(cudaMalloc(&errors, sizeof(CudaDM::CudaError) * MAX_ERROR_LEN));
     for (auto& gate: gates) {
-        printf("run %lld %d %d\n", gate.encodeQubit, gate.controlQubit, gate.targetQubit);
         cuCpx mat[2][2];
         memcpy(mat, gate.mat, sizeof(cuCpx) * 4);
         if (gate.isControlGate()) {
@@ -331,6 +408,12 @@ void launchDMExecutorSerial(cpx* deviceStateVec_, int numLocalQubits, const std:
                 deviceStateVec, gate.controlQubit * 2 + 1, gate.targetQubit * 2 + 1, 
                 cuConj(mat[0][0]), cuConj(mat[0][1]), cuConj(mat[1][0]), cuConj(mat[1][1])
             );
+            if (gate.controlErrors.size() > 0) {
+                apply_errors(deviceStateVec, errors, nVec, gate.controlQubit, gate.controlErrors);
+            }
+            if (gate.targetErrors.size() > 0) {
+                apply_errors(deviceStateVec, errors, nVec, gate.targetQubit, gate.targetErrors);
+            }
         } else if (gate.isSingleGate()) {
             CudaDM::run_dm_single<<<nVec >> (THREAD_DEP + 1), 1 << THREAD_DEP>>>(
                 deviceStateVec, gate.targetQubit * 2,
@@ -340,19 +423,29 @@ void launchDMExecutorSerial(cpx* deviceStateVec_, int numLocalQubits, const std:
                 deviceStateVec, gate.targetQubit * 2 + 1, 
                 cuConj(mat[0][0]), cuConj(mat[0][1]), cuConj(mat[1][0]), cuConj(mat[1][1])
             );
+            if (gate.targetErrors.size() > 0) {
+                apply_errors(deviceStateVec, errors, nVec, gate.targetQubit, gate.targetErrors);
+            }
         } else if (gate.isTwoQubitGate()) {
-            CudaDM::run_dm_control<<<nVec >> (THREAD_DEP + 2), 1 << THREAD_DEP>>>(
+            CudaDM::run_dm_dual<<<nVec >> (THREAD_DEP + 2), 1 << THREAD_DEP>>>(
                 deviceStateVec, gate.encodeQubit * 2, gate.targetQubit * 2,
                 mat[0][0], mat[0][1], mat[1][0], mat[1][1]
             );
-            CudaDM::run_dm_control<<<nVec >> (THREAD_DEP + 2), 1 << THREAD_DEP>>>(
+            CudaDM::run_dm_dual<<<nVec >> (THREAD_DEP + 2), 1 << THREAD_DEP>>>(
                 deviceStateVec, gate.encodeQubit * 2 + 1, gate.targetQubit * 2 + 1,
                 cuConj(mat[0][0]), cuConj(mat[0][1]), cuConj(mat[1][0]), cuConj(mat[1][1])
             );
+            if (gate.controlErrors.size() > 0) {
+                apply_errors(deviceStateVec, errors, nVec, gate.encodeQubit, gate.controlErrors);
+            }
+            if (gate.targetErrors.size() > 0) {
+                apply_errors(deviceStateVec, errors, nVec, gate.targetQubit, gate.targetErrors);
+            }
+        } else {
+            UNIMPLEMENTED();
         }
         checkCudaErrors(cudaDeviceSynchronize());
     }
-    printf("run end\n");
 }
 
 void dmAllocGate(int localGPUs) {
