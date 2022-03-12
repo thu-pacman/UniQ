@@ -46,7 +46,7 @@ void CudaExecutor::inplaceAll2All(int commSize, std::vector<int> comm, const Sta
         localMasks[i] = msk;
     }
 
-    int sliceSize = INPLACE;
+    int sliceSize = 0;
     while (sliceSize < MAX_SLICE && !(localMask >> sliceSize & 1))
         sliceSize ++;
 

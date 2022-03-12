@@ -73,8 +73,8 @@ Schedule Compiler::run() {
 #else
     bool enableGlobal = true;
 #endif
-    SimpleCompiler localCompiler(numQubits, localSize, (idx_t) -1, gates, enableGlobal, 0, (1 << INPLACE) - 1);
-    // ChunkCompiler localCompiler(numQubits, localSize, 21, gates);
+    int inplaceSize = std::min(INPLACE, localSize - 2);
+    SimpleCompiler localCompiler(numQubits, localSize, (idx_t) -1, gates, enableGlobal, 0, (1 << inplaceSize) - 1);
     LocalGroup localGroup = localCompiler.run();
     auto moveBack = moveToNext(localGroup);
     fillLocals(localGroup);

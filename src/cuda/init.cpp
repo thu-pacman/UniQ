@@ -22,7 +22,7 @@ void initState(std::vector<cpx*> &deviceStateVec, int numQubits) {
         size <<= 1;
     }
 #if INPLACE
-    size += sizeof(cuCpx) * (1 << MAX_SLICE);
+    size += sizeof(cuCpx) * (1 << (MODE == 2 ? MAX_SLICE * 2 : MAX_SLICE));
 #endif
 #if GPU_BACKEND == 2
     deviceStateVec.resize(1);

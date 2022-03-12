@@ -700,7 +700,7 @@ void CpuExecutor::inplaceAll2All(int commSize, std::vector<int> comm, const Stat
         localMasks[i] = msk;
     }
 
-    int sliceSize = INPLACE;
+    int sliceSize = 0;
     while (sliceSize < MAX_SLICE && !(localMask >> sliceSize & 1))
         sliceSize ++;
 

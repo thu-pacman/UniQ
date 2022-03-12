@@ -524,6 +524,9 @@ State LocalGroup::initStateInplace(const State& oldState, int numQubits, const s
     int localBit = MODE == 2 ? MyGlobalVars::bit / 2 : MyGlobalVars::bit;
     int numLocalQubits = numQubits - localBit;
     auto pos = oldState.pos, layout = oldState.layout;
+#if MODE == 2
+    overlapGlobals = duplicate_bit(overlapGlobals);
+#endif
     int overlapCnt = bitCount(overlapGlobals);
     std::vector<int> oldGlobals;
     for (int i = 0; i < localBit; i++) {
@@ -563,9 +566,6 @@ State LocalGroup::initStateInplace(const State& oldState, int numQubits, const s
         newComm.push_back(x.second);
     }
     a2aComm = newComm;
-#if MODE == 2
-    printf("TODO: check this function\n");
-#endif
     a2aCommSize = 1 << (MyGlobalVars::bit - overlapCnt);
     return newState;
 }
