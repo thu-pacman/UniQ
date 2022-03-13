@@ -582,7 +582,7 @@ void packing(int numQubits, const cpx* src_, cpx* dest_) {
     const cuCpx* src = reinterpret_cast<const cuCpx*>(src_);
     cuCpx* dest = reinterpret_cast<cuCpx*>(dest_);
     int n2 = numQubits / 2;
-    int n_thread = 1 << numQubits >> MyGlobalVars::bit;
+    idx_t n_thread = idx_t(1) << numQubits >> MyGlobalVars::bit;
     packing_kernel<<<n_thread / 256, 256>>>(1ll << n2, 1ll << (n2 - MyGlobalVars::bit), n2, n2 - MyGlobalVars::bit, src, dest);
 }
 
@@ -590,7 +590,7 @@ void unpacking(int numQubits, cpx* src_, cpx* buffer_) {
     cuCpx* src = reinterpret_cast<cuCpx*>(src_);
     cuCpx* buffer = reinterpret_cast<cuCpx*>(buffer_);
     int n2 = numQubits / 2;
-    int n_thread = 1 << numQubits >> MyGlobalVars::bit;
+    idx_t n_thread = idx_t(1) << numQubits >> MyGlobalVars::bit;
     unpacking_kernel<<<n_thread / 256, 256>>>(1ll << n2, 1ll << (n2 - MyGlobalVars::bit), n2, n2 - MyGlobalVars::bit, src, buffer);
     block_transpose_kernel<<<n_thread / TRANSPOSE_TILE / TRANSPOSE_TILE, TRANSPOSE_TILE * TRANSPOSE_TILE>>>(1ll << n2, 1ll << (n2 - MyGlobalVars::bit), n2, n2 - MyGlobalVars::bit, MyGlobalVars::numGPUs, buffer, src);
 }
