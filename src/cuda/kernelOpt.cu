@@ -152,6 +152,13 @@ __device__ __forceinline__ void GCC(int idx, cuCpx p) {
     shm[idx] = make_cuComplex(COMPLEX_MULTIPLY_REAL(v, p), COMPLEX_MULTIPLY_IMAG(v, p));
 }
 
+__device__ __forceinline__ void DIGSingle(int loIdx, int hiIdx, cuCpx p0, cuCpx p1) {
+    cuCpx lo = shm[loIdx];
+    shm[loIdx] = make_cuComplex(COMPLEX_MULTIPLY_REAL(lo, p0), COMPLEX_MULTIPLY_IMAG(lo, p0));
+    cuCpx hi = shm[hiIdx];
+    shm[hiIdx] = make_cuComplex(COMPLEX_MULTIPLY_REAL(hi, p1), COMPLEX_MULTIPLY_IMAG(hi, p1));
+}
+
 #define FOLLOW_NEXT(TYPE) \
 case GateType::TYPE: // no break
 
@@ -402,8 +409,10 @@ __device__ void doCompute(int numGates, int* loArr, int* shiftAt) {
                     CASE_SINGLE(GII, GIISingle(lo, hi))
                     CASE_SINGLE(GZZ, GZZSingle(lo, hi))
                     CASE_SINGLE(GCC, GCCSingle(lo, hi, make_cuComplex(deviceGates[i].r00, deviceGates[i].i00)))
+                    CASE_SINGLE(DIG, DIGSingle(lo, hi, make_cuComplex(deviceGates[i].r00, deviceGates[i].i00), make_cuComplex(deviceGates[i].r11, deviceGates[i].i11)))
                     ID_BREAK()
                     default: {
+                        printf("gate type %d\n", deviceGates[i].type);
                         assert(false);
                     }
                 }
@@ -424,6 +433,7 @@ __device__ void doCompute(int numGates, int* loArr, int* shiftAt) {
                     LOHI_SAME(GII, GII(j))
                     LOHI_SAME(GZZ, GZZ(j))
                     LOHI_SAME(GCC, GCC(j, make_cuComplex(deviceGates[i].r00, deviceGates[i].i00)))
+                    CASE_LO_HI(DIG, GCC(j, make_cuComplex(deviceGates[i].r00, deviceGates[i].i00)), GCC(j, make_cuComplex(deviceGates[i].r11, deviceGates[i].i11)))
                     ID_BREAK()
                     default: {
                         assert(false);

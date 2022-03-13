@@ -80,7 +80,7 @@ int Circuit::run(bool copy_back, bool destroy) {
 #if MODE == 0
     DevExecutor(deviceStateVec, numQubits, schedule).run();
 #elif MODE == 1
-    DecExecutor exe1(deviceStateVec, numQubits, schedule);
+    DevExecutor exe1(deviceStateVec, numQubits, schedule);
     exe1.run();
     exe1.dm_transpose();
     DevExecutor exe2(deviceStateVec, numQubits, schedule);
@@ -109,7 +109,7 @@ int Circuit::run(bool copy_back, bool destroy) {
 // #endif
     auto end = chrono::system_clock::now();
 #ifdef USE_GPU
-    CudaImpl::startProfiler();
+    CudaImpl::stopProfiler();
 #endif
     auto duration = chrono::duration_cast<chrono::microseconds>(end - start);
     Logger::add("Time Cost: %d us", int(duration.count()));

@@ -1,10 +1,11 @@
 #!/bin/bash
 set -x
 # if [ "$SLURM_LOCALID" == "0" ]; then
-source init.sh ${@: 2}
+source ../scripts/init.sh ${@: 2}
 input_dir=../tests/input-extend
-std_dir=../tests/output-extend
-
+if [ -z $std_dir ]; then
+    std_dir=../tests/output-extend
+fi
 for test in ${tests[*]}; do
     $MPIRUN_CONFIG ./main $input_dir/$test.qasm > $1/$test.log
     grep "Logger" $1/$test.log

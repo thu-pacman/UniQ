@@ -22,10 +22,11 @@ def run(filename):
 
 if __name__ == "__main__":
     cases = [
-        "basis_change_29",
         "bv_27",
         "efficient_su2_28",
         "hidden_shift_27",
+        "iqp_25",
+        "qaoa_26",
         "qft_29",
         "supremacy_28"
     ]

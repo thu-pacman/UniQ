@@ -177,11 +177,11 @@ void CudaExecutor::all2all(int commSize, std::vector<int> comm) {
         checkCudaErrors(cudaEventCreate(&MyGlobalVars::events[g]));
         checkCudaErrors(cudaEventRecord(MyGlobalVars::events[g], MyGlobalVars::streams[g]));
     }
+#if USE_MPI
+    checkNCCLErrors(ncclGroupStart());
+#endif
     for (int xr = 0; xr < commSize; xr++) {
         for (int p = 0; p < numPart; p++) {
-#if USE_MPI
-            checkNCCLErrors(ncclGroupStart());
-#endif
             for (int a = 0; a < MyGlobalVars::numGPUs; a++) {
                 int b = a ^ xr;
                 if (comm[a] / MyGlobalVars::localGPUs != MyMPI::rank)
@@ -258,11 +258,9 @@ void CudaExecutor::all2all(int commSize, std::vector<int> comm) {
                 partID[sliceID * MyGlobalVars::localGPUs + comm_a] = dstPart;
                 peer[sliceID * MyGlobalVars::localGPUs + comm_a] = comm[b];
             }
-#if USE_MPI
-            checkNCCLErrors(ncclGroupEnd());
-#endif
             // events should be recorded after ncclGroupEnd
 #ifdef ENABLE_OVERLAP
+            UNIMPLEMENTED(); // not tested recently
             for (int a = 0; a < MyGlobalVars::numGPUs; a++) {
                 if (USE_MPI && comm[a] / MyGlobalVars::localGPUs != MyMPI::rank)
                     continue;
@@ -277,6 +275,9 @@ void CudaExecutor::all2all(int commSize, std::vector<int> comm) {
             sliceID++;
         }
     }
+#if USE_MPI
+    checkNCCLErrors(ncclGroupEnd());
+#endif
 #ifndef ENABLE_OVERLAP
     this->eventBarrierAll();
 #endif

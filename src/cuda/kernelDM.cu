@@ -9,11 +9,6 @@
 using namespace std;
 
 namespace CudaDM {
-
-static __shared__ cuCpx shm[1<<(LOCAL_QUBIT_SIZE * 2)];
-static __shared__ idx_t blockBias;
-
-__device__ __constant__ value_t recRoot2 = 0.70710678118654752440084436210485; // more elegant way?
 std::vector<KernelGate*> deviceGatePointers;
 
 #define COMPLEX_MULTIPLY_REAL(v0, v1) (v0.x * v1.x - v0.y * v1.y)
@@ -23,7 +18,13 @@ std::vector<KernelGate*> deviceGatePointers;
 #define COMPLEX_MULTIPLY_REAL_ND(v0, v1) (v0.x * v1.x + v0.y * v1.y)
 #define COMPLEX_MULTIPLY_IMAG_ND(v0, v1) (-v0.x * v1.y + v0.y * v1.x)
 
+#if MODE==2
+static __shared__ cuCpx shm[1<<(LOCAL_QUBIT_SIZE * 2)];
+static __shared__ idx_t blockBias;
+
+__device__ __constant__ value_t recRoot2 = 0.70710678118654752440084436210485; // more elegant way?
 template <unsigned int blockSize>
+
 __device__ void doComputeDM(int numGates, KernelGate* deviceGates) {
     for (int i = 0; i < numGates; i++) {
         int controlQubit = deviceGates[i].controlQubit;
@@ -187,7 +188,6 @@ __device__ void doComputeDM(int numGates, KernelGate* deviceGates) {
             }
         }
         // apply error
-#if MODE == 2
         __syncthreads();
         if (deviceGates[i].err_len_target > 0) {
             int m = 1 << (LOCAL_QUBIT_SIZE * 2 - 2);
@@ -295,7 +295,6 @@ __device__ void doComputeDM(int numGates, KernelGate* deviceGates) {
                 shm[s00] = sum00; shm[s01] = sum01; shm[s10] = sum10; shm[s11] = sum11;
             }
         }
-#endif
         __syncthreads();
     }
 }
@@ -346,6 +345,7 @@ __global__ void run_dm(cuCpx* a, unsigned int* threadBias, KernelGate* deviceGat
     __syncthreads();
     saveDataDM(a, threadBias, enumerate);
 }
+#endif
 
 __global__ void run_dm_control(cuCpx* a, int controlQubit, int targetQubit, const cuCpx v00, const cuCpx v01, const cuCpx v10, const cuCpx v11) {
     int tid = blockIdx.x * blockDim.x + threadIdx.x;
@@ -485,8 +485,12 @@ void copyGatesToGlobal(KernelGate* hostGates, int numGates, cudaStream_t& stream
 }
 
 void launchDMExecutor(int gridDim, cpx* deviceStateVec, unsigned int* threadBias, int numLocalQubits, int numGates, unsigned int blockHot, unsigned int enumerate, cudaStream_t& stream, int gpuID) {
+#if MODE == 2
     CudaDM::run_dm<1<<THREAD_DEP><<<gridDim, 1<<THREAD_DEP, 0, stream>>>
         (reinterpret_cast<cuCpx*>(deviceStateVec), threadBias, CudaDM::deviceGatePointers[gpuID], numLocalQubits, numGates, blockHot, enumerate);
+#else
+    UNREACHABLE()
+#endif
 }
 
 void apply_errors(cuCpx* deviceStateVec, CudaDM::CudaError* errors, idx_t nVec, int targetQubit, const std::vector<Error>& targetErrors) {

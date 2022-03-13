@@ -11,7 +11,7 @@ cpx getAmp (const std::vector<cpx*>& deviceStateVec, int gpuID, idx_t localIdx) 
 }
 
 void copyBackState(std::vector<cpx>& result, const std::vector<cpx*>& deviceStateVec, int numQubits) {
-    result.resize(1ll << numQubits); // very slow ...
+    result.resize((1ll << numQubits) / MyMPI::commSize); // very slow ...
 #if GPU_BACKEND == 0 || GPU_BACKEND == 2
     cudaMemcpy((cpx*)result.data(), deviceStateVec[0], sizeof(cpx) << numQubits, cudaMemcpyDeviceToHost);
 #else
