@@ -660,9 +660,12 @@ std::string Gate::get_name(GateType ty) {
 
 std::vector<unsigned char> Gate::serialize() const {
     auto name_len = name.length();
+    auto cerr_len = controlErrors.size();
+    auto terr_len = targetErrors.size();
     int len =
         sizeof(name_len) + name.length() + 1 + sizeof(gateID) + sizeof(type) + sizeof(mat)
-        + sizeof(targetQubit) + sizeof(controlQubit) + sizeof(encodeQubit);
+        + sizeof(targetQubit) + sizeof(controlQubit) + sizeof(encodeQubit)
+        + sizeof(cerr_len) + sizeof(Error) * cerr_len + sizeof(terr_len) + sizeof(Error) * terr_len;
     std::vector<unsigned char> ret; ret.resize(len);
     unsigned char* arr = ret.data();
     int cur = 0;
@@ -674,6 +677,14 @@ std::vector<unsigned char> Gate::serialize() const {
     SERIALIZE_STEP(targetQubit);
     SERIALIZE_STEP(controlQubit);
     SERIALIZE_STEP(encodeQubit);
+    SERIALIZE_STEP(cerr_len);
+    if (cerr_len > 0)
+        memcpy(arr + cur, controlErrors.data(), sizeof(Error) * cerr_len);
+    cur += sizeof(Error) * cerr_len;
+    SERIALIZE_STEP(terr_len);
+    if (terr_len > 0)
+        memcpy(arr + cur, targetErrors.data(), sizeof(Error) * terr_len);
+    cur += sizeof(Error) * terr_len;
     assert(cur == len);
     return ret;
 }
@@ -688,5 +699,10 @@ Gate Gate::deserialize(const unsigned char* arr, int& cur) {
     DESERIALIZE_STEP(g.targetQubit);
     DESERIALIZE_STEP(g.controlQubit);
     DESERIALIZE_STEP(g.encodeQubit);
+    decltype(g.controlErrors.size()) cerr_len, terr_len;
+    DESERIALIZE_STEP(cerr_len);
+    DESERIALIZE_VECTOR(g.controlErrors, cerr_len);
+    DESERIALIZE_STEP(terr_len);
+    DESERIALIZE_VECTOR(g.targetErrors, terr_len);
     return g;
 }

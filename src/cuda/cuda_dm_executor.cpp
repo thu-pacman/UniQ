@@ -202,8 +202,6 @@ void CudaDMExecutor::all2all(int commSize, std::vector<int> comm) {
     idx_t numElements = 1ll << (numLocalQubit * 2);
     int numPart = numSlice / commSize;
     idx_t partSize = numElements / numSlice;
-    partID.resize(numSlice * MyGlobalVars::localGPUs);
-    peer.resize(numSlice * MyGlobalVars::localGPUs);
     for (int g = 0; g < MyGlobalVars::localGPUs; g++) {
         checkCudaErrors(cudaSetDevice(g));
         checkCudaErrors(cudaDeviceSynchronize());

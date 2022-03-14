@@ -249,9 +249,7 @@ std::unique_ptr<Circuit> parse_circuit(const std::string &filename) {
 }
 
 int main(int argc, char* argv[]) {
-    #if USE_MPI
-        MyMPI::init();
-    #endif
+    MyMPI::init();
     MyGlobalVars::init();
     std::unique_ptr<Circuit> c;
     if (argc != 2) {

@@ -42,6 +42,9 @@ void init() {
     MPI_Init(nullptr, nullptr);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &commSize);
+#else
+    rank = 0;
+    commSize = 1;
 #endif
 }
 };

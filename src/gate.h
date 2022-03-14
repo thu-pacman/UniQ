@@ -9,6 +9,7 @@ enum class GateType {
 };
 
 struct Error {
+    Error() = default;
     Error(GateType type_, cpx mat00_, cpx mat01_, cpx mat10_, cpx mat11_):
         type(type_), mat00(mat00_), mat01(mat01_), mat10(mat10_), mat11(mat11_) {}
     GateType type;
