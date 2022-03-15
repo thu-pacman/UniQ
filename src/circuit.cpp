@@ -16,6 +16,7 @@
 #ifdef USE_CPU
 #include "cpu/cpu_executor.h"
 #include "cpu/entry.h"
+#include "cpu/cpu_dm_executor.h"
 #endif
 #include <cstring>
 using namespace std;
@@ -27,6 +28,9 @@ typedef CudaImpl::CudaDMExecutor DevDMExecutor;
 #endif
 #elif USE_CPU
 typedef CpuImpl::CpuExecutor DevExecutor;
+#if MODE == 2
+typedef CpuImpl::CpuDMExecutor DevDMExecutor;
+#endif
 #else
 TD // compile error
 #endif

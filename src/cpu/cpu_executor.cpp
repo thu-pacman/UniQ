@@ -749,6 +749,10 @@ void CpuExecutor::launchBlasGroup(GateGroup& gg, int numLocalQubits) { UNIMPLEME
 void CpuExecutor::launchBlasGroupSliced(GateGroup& gg, int numLocalQubits, int sliceID) { UNIMPLEMENTED(); }
 void CpuExecutor::sliceBarrier(int sliceID) { UNIMPLEMENTED(); }
 void CpuExecutor::eventBarrier() { UNIMPLEMENTED(); }
-void CpuExecutor::eventBarrierAll() { checkMPIErrors(MPI_Barrier(MPI_COMM_WORLD)); }
+void CpuExecutor::eventBarrierAll() {
+#if USE_MPI
+    checkMPIErrors(MPI_Barrier(MPI_COMM_WORLD));
+#endif
+}
 
 }
