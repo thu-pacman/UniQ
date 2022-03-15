@@ -19,11 +19,11 @@ void initCpu() {
 
 void initState(std::vector<cpx*> &deviceStateVec, int numQubits) {
     size_t size = (sizeof(cpx) << numQubits) >> MyGlobalVars::bit;
-    if ((MyGlobalVars::numGPUs > 1 && !INPLACE) || GPU_BACKEND == 3 || GPU_BACKEND == 4 || MODE > 0) {
+    if ((MyGlobalVars::numGPUs > 1 && !INPLACE) || GPU_BACKEND == 3 || GPU_BACKEND == 4 || MODE == 1) {
         size <<= 1;
     }
 #if INPLACE
-    size += sizeof(cpx) * (1 << MAX_SLICE);
+    size += sizeof(cpx) * (1 << (MODE == 2 ? MAX_SLICE * 2 : MAX_SLICE));
 #endif
     deviceStateVec.resize(MyGlobalVars::localGPUs);
     for (int g = 0; g < MyGlobalVars::localGPUs; g++) {
