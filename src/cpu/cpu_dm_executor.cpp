@@ -48,32 +48,7 @@ inline void apply_gate_group(value_t* local_real, value_t* local_imag, int numGa
         int targetQubit = gate.targetQubit;
 
         if (gate.controlQubit == -1) { // single qubit gate
-            targetQubit *= 2;
-            int smallQubit = targetQubit;
-            int m = 1 << (local2 - 1);
-            int maskTarget = (1 << smallQubit) - 1;
-            for (int j = 0; j < m; j++) {
-                int s0 = ((j >> smallQubit) << (smallQubit + 1)) | (j & maskTarget);
-                int s1 = s0 | (1 << smallQubit);
-                cpx val0 = CPXL(s0);
-                cpx val1 = CPXL(s1);
-                cpx val0_new = val0 * cpx(gate.r00, gate.i00) + val1 * cpx(gate.r01, gate.i01);
-                cpx val1_new = val0 * cpx(gate.r10, gate.i10) + val1 * cpx(gate.r11, gate.i11);
-                CPXS(s0, val0_new)
-                CPXS(s1, val1_new)
-            }
-            smallQubit ++;
-            maskTarget = (1 << smallQubit) - 1;
-            for (int j = 0; j < m; j++) {
-                int s0 = ((j >> smallQubit) << (smallQubit + 1)) | (j & maskTarget);
-                int s1 = s0 | (1 << smallQubit);
-                cpx val0 = CPXL(s0);
-                cpx val1 = CPXL(s1);
-                cpx val0_new = val0 * cpx(gate.r00, -gate.i00) + val1 * cpx(gate.r01, -gate.i01);
-                cpx val1_new = val0 * cpx(gate.r10, -gate.i10) + val1 * cpx(gate.r11, -gate.i11);
-                CPXS(s0, val0_new)
-                CPXS(s1, val1_new)
-            }
+            // skip due to error fusion
         } else {
             if (gate.controlQubit == -3) { // two qubit gate
                 controlQubit = gate.encodeQubit;
@@ -206,6 +181,7 @@ inline void apply_gate_group(value_t* local_real, value_t* local_imag, int numGa
                 CPXS(s11, sum11)
             }
         }
+      , local_real[1], local_imag[1], local_real[2], local_imag[2], local_real[3], local_imag[3]);
         if (hostGates[i].err_len_control > 0) {
             int m = 1 << (LOCAL_QUBIT_SIZE * 2 - 2);
             int qid = hostGates[i].controlQubit == -3? hostGates[i].encodeQubit: hostGates[i].controlQubit;

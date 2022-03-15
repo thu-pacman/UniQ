@@ -30,42 +30,7 @@ __device__ void doComputeDM(int numGates, KernelGate* deviceGates) {
         int controlQubit = deviceGates[i].controlQubit;
         int targetQubit = deviceGates[i].targetQubit;
         if (deviceGates[i].controlQubit == -1) { // single qubit gate
-            auto& gate = deviceGates[i];
-            targetQubit *= 2;
-            int smallQubit = targetQubit;
-            int m = 1 << (LOCAL_QUBIT_SIZE * 2 - 1);
-            int maskTarget = (1 << smallQubit) - 1;
-            for (int j = threadIdx.x; j < m; j += blockSize) {
-                int s0 = ((j >> smallQubit) << (smallQubit + 1)) | (j & maskTarget);
-                int s1 = s0 | (1 << targetQubit);
-                cuCpx val0 = shm[s0];
-                cuCpx val1 = shm[s1];
-                shm[s0] = make_cuComplex(
-                    COMPLEX_MULTIPLY_REAL(val0, make_cuComplex(gate.r00, gate.i00)) + COMPLEX_MULTIPLY_REAL(val1, make_cuComplex(gate.r01, gate.i01)),
-                    COMPLEX_MULTIPLY_IMAG(val0, make_cuComplex(gate.r00, gate.i00)) + COMPLEX_MULTIPLY_IMAG(val1, make_cuComplex(gate.r01, gate.i01))
-                );
-                shm[s1] = make_cuComplex(
-                    COMPLEX_MULTIPLY_REAL(val0, make_cuComplex(gate.r10, gate.i10)) + COMPLEX_MULTIPLY_REAL(val1, make_cuComplex(gate.r11, gate.i11)),
-                    COMPLEX_MULTIPLY_IMAG(val0, make_cuComplex(gate.r10, gate.i10)) + COMPLEX_MULTIPLY_IMAG(val1, make_cuComplex(gate.r11, gate.i11))
-                );
-            }
-            __syncthreads();
-            smallQubit ++;
-            maskTarget = (1 << smallQubit) - 1;
-            for (int j = threadIdx.x; j < m; j += blockSize) {
-                int s0 = ((j >> smallQubit) << (smallQubit + 1)) | (j & maskTarget);
-                int s1 = s0 | (1 << smallQubit);
-                cuCpx val0 = shm[s0];
-                cuCpx val1 = shm[s1];
-                shm[s0] = make_cuComplex(
-                    COMPLEX_MULTIPLY_REAL(val0, make_cuComplex(gate.r00, -gate.i00)) + COMPLEX_MULTIPLY_REAL(val1, make_cuComplex(gate.r01, -gate.i01)),
-                    COMPLEX_MULTIPLY_IMAG(val0, make_cuComplex(gate.r00, -gate.i00)) + COMPLEX_MULTIPLY_IMAG(val1, make_cuComplex(gate.r01, -gate.i01))
-                );
-                shm[s1] = make_cuComplex(
-                    COMPLEX_MULTIPLY_REAL(val0, make_cuComplex(gate.r10, -gate.i10)) + COMPLEX_MULTIPLY_REAL(val1, make_cuComplex(gate.r11, -gate.i11)),
-                    COMPLEX_MULTIPLY_IMAG(val0, make_cuComplex(gate.r10, -gate.i10)) + COMPLEX_MULTIPLY_IMAG(val1, make_cuComplex(gate.r11, -gate.i11))
-                );
-            }
+            // skip due to gate fusion
         } else {
             if (deviceGates[i].controlQubit == -3) { // twoQubitGate
                 auto& gate = deviceGates[i];

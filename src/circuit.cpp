@@ -562,10 +562,7 @@ void Circuit::masterCompile() {
 
 void Circuit::compile() {
     auto start = chrono::system_clock::now();
-#if MODE != 2
-    // cannot fuse gate when error exists
     this->transform();
-#endif
 #if USE_MPI
     if (MyMPI::rank == 0) {
         masterCompile();
@@ -823,6 +820,30 @@ void single_qubit_fusion(std::vector<Gate> &gates, int numQubits, bool erased[])
     }
 }
 
+#if MODE == 2
+void single_error_fusion(std::vector<Gate> &gates, int numQubits, bool erased[]) {
+    for (int i = 0; i < (int) gates.size(); i++) {
+        if (erased[i]) continue;
+        if (gates[i].isSingleGate()) {
+            Gate cpy = gates[i];
+            gates[i] = Gate::ID(gates[i].targetQubit);
+            gates[i].gateID = cpy.gateID;
+            gates[i].controlErrors = cpy.controlErrors;
+            assert(gates[i].controlErrors.size() == 0);
+            gates[i].targetErrors = cpy.targetErrors;
+            for (auto& err: gates[i].targetErrors) {
+                cpx mat00 = err.mat00 * std::conj(cpy.mat[0][0]) + err.mat01 * std::conj(cpy.mat[1][0]);
+                cpx mat01 = err.mat00 * std::conj(cpy.mat[0][1]) + err.mat01 * std::conj(cpy.mat[1][1]);
+                cpx mat10 = err.mat10 * std::conj(cpy.mat[0][0]) + err.mat11 * std::conj(cpy.mat[1][0]);
+                cpx mat11 = err.mat10 * std::conj(cpy.mat[0][1]) + err.mat11 * std::conj(cpy.mat[1][1]);
+                err.type = GateType::U;
+                err.mat00 = mat00; err.mat01 = mat01; err.mat10 = mat10; err.mat11 = mat11;
+            }
+        }
+    }
+}
+#endif
+
 inline bool eps_equal(cpx a, cpx b) {
     const value_t eps = 1e-14;
     return a.real() - b.real() < eps && b.real() - a.real() < eps && a.imag() - b.imag() < eps && b.imag() - a.imag() < eps;
@@ -831,8 +852,12 @@ inline bool eps_equal(cpx a, cpx b) {
 void Circuit::transform() {
     bool *erased = new bool[gates.size()];
     memset(erased, 0, sizeof(bool) * gates.size());
+#if MODE != 2
     hczh2cx(this->gates, numQubits, erased);
     single_qubit_fusion(this->gates, numQubits, erased);
+#else
+    single_error_fusion(this->gates, numQubits, erased);
+#endif
     std::vector<Gate> new_gates;
     for (int i = 0; i < (int) gates.size(); i++)
         if (!erased[i])
