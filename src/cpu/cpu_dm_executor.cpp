@@ -55,13 +55,13 @@ inline void apply_gate_group(value_t* local_real, value_t* local_imag, int numGa
                 controlQubit *= 2;
                 targetQubit *= 2;
                 int m = 1 << (local2 - 2);
-                int smallQubit = controlQubit > targetQubit ? targetQubit : controlQubit;
-                int largeQubit = controlQubit > targetQubit ? controlQubit : targetQubit;
-                int maskSmall = (1 << smallQubit) - 1;
-                int maskLarge = (1 << largeQubit) - 1;
+                int low_bit = std::min(controlQubit, targetQubit);
+                int high_bit = std::max(controlQubit, targetQubit);
+                int mask_inner = (1 << (local2 - 2)) - (1 << low_bit);
+                int mask_outer = (1 << (local2 - 1)) - (1 << high_bit);
                 for (int j = 0; j < m; j++) {
-                    int s00 = ((j >> smallQubit) << (smallQubit + 1)) | (j & maskSmall);
-                    s00 = ((s00 >> largeQubit) << (largeQubit + 1)) | (s00 & maskLarge);
+                    int s00 = j + (j & mask_inner);
+                    s00 = s00 + (s00 & mask_outer);
                     int s01 = s00 | (1 << controlQubit);
                     int s10 = s00 | (1 << targetQubit);
                     int s11 = s01 | s10;
@@ -81,13 +81,13 @@ inline void apply_gate_group(value_t* local_real, value_t* local_imag, int numGa
                     CPXS(s10, val10_new)
                     CPXS(s11, val11_new)
                 }
-                smallQubit ++; largeQubit++;
-                maskSmall = (1 << smallQubit) - 1;
-                maskLarge = (1 << largeQubit) - 1;
+                low_bit++; high_bit++;
+                mask_inner = (1 << (local2 - 2)) - (1 << low_bit);
+                mask_outer = (1 << (local2 - 1)) - (1 << high_bit);
 
                 for (int j = 0; j < m; j++) {
-                    int s00 = ((j >> smallQubit) << (smallQubit + 1)) | (j & maskSmall);
-                    s00 = ((s00 >> largeQubit) << (largeQubit + 1)) | (s00 & maskLarge);
+                    int s00 = j + (j & mask_inner);
+                    s00 = s00 + (s00 & mask_outer);
                     int s01 = s00 | (1 << (controlQubit + 1));
                     int s10 = s00 | (1 << (targetQubit + 1));
                     int s11 = s01 | s10;
@@ -110,14 +110,14 @@ inline void apply_gate_group(value_t* local_real, value_t* local_imag, int numGa
             } else { // controlled gate
                 controlQubit *= 2;
                 targetQubit *= 2;
-                int m = 1 << (LOCAL_QUBIT_SIZE * 2 - 2);
-                int smallQubit = controlQubit > targetQubit ? targetQubit : controlQubit;
-                int largeQubit = controlQubit > targetQubit ? controlQubit : targetQubit;
-                int maskSmall = (1 << smallQubit) - 1;
-                int maskLarge = (1 << largeQubit) - 1;
+                int m = 1 << (local2 - 2);
+                int low_bit = std::min(controlQubit, targetQubit);
+                int high_bit = std::max(controlQubit, targetQubit);
+                int mask_inner = (1 << (local2 - 2)) - (1 << low_bit);
+                int mask_outer = (1 << (local2 - 1)) - (1 << high_bit);
                 for (int j = 0; j < m; j++) {
-                    int s0 = ((j >> smallQubit) << (smallQubit + 1)) | (j & maskSmall);
-                    s0 = ((s0 >> largeQubit) << (largeQubit + 1)) | (s0 & maskLarge);
+                    int s0 = j + (j & mask_inner);
+                    s0 = s0 + (s0 & mask_outer);
                     s0 |= (1 << controlQubit);
                     int s1 = s0 | (1 << targetQubit);
                     cpx val0 = CPXL(s0);
@@ -128,13 +128,13 @@ inline void apply_gate_group(value_t* local_real, value_t* local_imag, int numGa
                     CPXS(s1, val1_new)
                 }
 
-                smallQubit ++; largeQubit++;
-                maskSmall = (1 << smallQubit) - 1;
-                maskLarge = (1 << largeQubit) - 1;
+                low_bit++; high_bit++;
+                mask_inner = (1 << (local2 - 2)) - (1 << low_bit);
+                mask_outer = (1 << (local2 - 1)) - (1 << high_bit);
 
                 for (int j = 0; j < m; j++) {
-                    int s0 = ((j >> smallQubit) << (smallQubit + 1)) | (j & maskSmall);
-                    s0 = ((s0 >> largeQubit) << (largeQubit + 1)) | (s0 & maskLarge);
+                    int s0 = j + (j & mask_inner);
+                    s0 = s0 + (s0 & mask_outer);
                     s0 |= (1 << (controlQubit + 1));
                     int s1 = s0 | (1 << (targetQubit + 1));
                     cpx val0 = CPXL(s0);
@@ -146,14 +146,14 @@ inline void apply_gate_group(value_t* local_real, value_t* local_imag, int numGa
                 }
 
             }
-            // TODO: apply error
         }
         if (hostGates[i].err_len_target > 0) {
-            int m = 1 << (LOCAL_QUBIT_SIZE * 2 - 2);
+            int m = 1 << (local2 - 2);
             int qid = hostGates[i].targetQubit * 2;
             int numErrors = hostGates[i].err_len_target;
+            int mask_inner = (1 << (local2 - 2)) - (1 << qid);
             for (int j = 0; j < m; j++) {
-                int s00 = ((j >> qid) << (qid + 2)) | (j & ((1 << qid) - 1));
+                int s00 = j + (j & mask_inner) * 3;
                 int s01 = s00 | (1 << qid);
                 int s10 = s00 | (1 << (qid + 1));
                 int s11 = s01 | s10;
@@ -181,14 +181,14 @@ inline void apply_gate_group(value_t* local_real, value_t* local_imag, int numGa
                 CPXS(s11, sum11)
             }
         }
-      , local_real[1], local_imag[1], local_real[2], local_imag[2], local_real[3], local_imag[3]);
         if (hostGates[i].err_len_control > 0) {
             int m = 1 << (LOCAL_QUBIT_SIZE * 2 - 2);
             int qid = hostGates[i].controlQubit == -3? hostGates[i].encodeQubit: hostGates[i].controlQubit;
             qid *= 2;
             int numErrors = hostGates[i].err_len_control;
+            int mask_inner = (1 << (local2 - 2)) - (1 << qid);
             for (int j = 0; j < m; j++) {
-                int s00 = ((j >> qid) << (qid + 2)) | (j & ((1 << qid) - 1));
+                int s00 = j + (j & mask_inner) * 3;
                 int s01 = s00 | (1 << qid);
                 int s10 = s00 | (1 << (qid + 1));
                 int s11 = s01 | s10;
