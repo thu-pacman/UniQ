@@ -74,7 +74,6 @@ inline void apply_gate_group(value_t* local_real, value_t* local_imag, int numGa
                 CPXS(s0, val0_new)
                 CPXS(s1, val1_new)
             }
-            // TODO: apply error
         } else {
             if (gate.controlQubit == -3) { // two qubit gate
                 controlQubit = gate.encodeQubit;
@@ -173,6 +172,73 @@ inline void apply_gate_group(value_t* local_real, value_t* local_imag, int numGa
 
             }
             // TODO: apply error
+        }
+        if (hostGates[i].err_len_target > 0) {
+            int m = 1 << (LOCAL_QUBIT_SIZE * 2 - 2);
+            int qid = hostGates[i].targetQubit * 2;
+            int numErrors = hostGates[i].err_len_target;
+            for (int j = 0; j < m; j++) {
+                int s00 = ((j >> qid) << (qid + 2)) | (j & ((1 << qid) - 1));
+                int s01 = s00 | (1 << qid);
+                int s10 = s00 | (1 << (qid + 1));
+                int s11 = s01 | s10;
+                cpx val00 = CPXL(s00);
+                cpx val01 = CPXL(s01);
+                cpx val10 = CPXL(s10);
+                cpx val11 = CPXL(s11);
+
+                cpx sum00 = cpx(0.0), sum01 = cpx(0.0), sum10 = cpx(0.0), sum11=cpx(0.0);
+                for (int k = 0; k < numErrors; k++) {
+                    cpx (*e)[2] = hostGates[i].errs_target[k];
+                    cpx w00 = e[0][0] * val00 + e[0][1] * val10;
+                    cpx w01 = e[0][0] * val01 + e[0][1] * val11;
+                    cpx w10 = e[1][0] * val00 + e[1][1] * val10;
+                    cpx w11 = e[1][0] * val01 + e[1][1] * val11;
+                    sum00 += w00 * std::conj(e[0][0]) + w01 * std::conj(e[0][1]);
+                    sum01 += w00 * std::conj(e[1][0]) + w01 * std::conj(e[1][1]);
+                    sum10 += w10 * std::conj(e[0][0]) + w11 * std::conj(e[0][1]);
+                    sum11 += w10 * std::conj(e[1][0]) + w11 * std::conj(e[1][1]);
+                }
+
+                CPXS(s00, sum00)
+                CPXS(s01, sum01)
+                CPXS(s10, sum10)
+                CPXS(s11, sum11)
+            }
+        }
+        if (hostGates[i].err_len_control > 0) {
+            int m = 1 << (LOCAL_QUBIT_SIZE * 2 - 2);
+            int qid = hostGates[i].controlQubit == -3? hostGates[i].encodeQubit: hostGates[i].controlQubit;
+            qid *= 2;
+            int numErrors = hostGates[i].err_len_control;
+            for (int j = 0; j < m; j++) {
+                int s00 = ((j >> qid) << (qid + 2)) | (j & ((1 << qid) - 1));
+                int s01 = s00 | (1 << qid);
+                int s10 = s00 | (1 << (qid + 1));
+                int s11 = s01 | s10;
+                cpx val00 = CPXL(s00);
+                cpx val01 = CPXL(s01);
+                cpx val10 = CPXL(s10);
+                cpx val11 = CPXL(s11);
+
+                cpx sum00 = cpx(0.0), sum01 = cpx(0.0), sum10 = cpx(0.0), sum11=cpx(0.0);
+                for (int k = 0; k < numErrors; k++) {
+                    cpx (*e)[2] = hostGates[i].errs_control[k];
+                    cpx w00 = e[0][0] * val00 + e[0][1] * val10;
+                    cpx w01 = e[0][0] * val01 + e[0][1] * val11;
+                    cpx w10 = e[1][0] * val00 + e[1][1] * val10;
+                    cpx w11 = e[1][0] * val01 + e[1][1] * val11;
+                    sum00 += w00 * std::conj(e[0][0]) + w01 * std::conj(e[0][1]);
+                    sum01 += w00 * std::conj(e[1][0]) + w01 * std::conj(e[1][1]);
+                    sum10 += w10 * std::conj(e[0][0]) + w11 * std::conj(e[0][1]);
+                    sum11 += w10 * std::conj(e[1][0]) + w11 * std::conj(e[1][1]);
+                }
+
+                CPXS(s00, sum00)
+                CPXS(s01, sum01)
+                CPXS(s10, sum10)
+                CPXS(s11, sum11)
+            }
         }
     }
 }
