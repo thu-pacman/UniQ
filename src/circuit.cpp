@@ -86,9 +86,6 @@ int Circuit::run(bool copy_back, bool destroy) {
 #elif MODE == 1
     DevExecutor exe1(deviceStateVec, numQubits, schedule);
     exe1.run();
-    exe1.dm_transpose();
-    DevExecutor exe2(deviceStateVec, numQubits, schedule);
-    exe2.run();
 #elif MODE == 2
     DevDMExecutor(deviceStateVec, numQubits / 2, schedule).run();
 #endif
@@ -531,6 +528,32 @@ bool Circuit::localAmpAt(idx_t idx, ResultItem& item) {
     return false;
 }
 
+void Circuit::duplicate_conj() {
+    std::vector<Gate> duplicate_gates = gates;
+    int nd2 = numQubits / 2;
+    for (auto& gate: duplicate_gates) {
+        gate.gateID = Gate::newID();
+        gate.targetQubit += nd2;
+        if (gate.isControlGate()) {
+            gate.controlQubit +=nd2;
+            gate.type = GateType::CU;
+            gate.name = "CU";
+        } else if (gate.isTwoQubitGate()) {
+            gate.encodeQubit += nd2;
+        } else if (gate.isSingleGate()) {
+            gate.type = GateType::U;
+            gate.name = "U";
+        } else {
+            UNIMPLEMENTED();
+        }
+        gate.mat[0][0] = std::conj(gate.mat[0][0]);
+        gate.mat[0][1] = std::conj(gate.mat[0][1]);
+        gate.mat[1][0] = std::conj(gate.mat[1][0]);
+        gate.mat[1][1] = std::conj(gate.mat[1][1]);
+        gates.push_back(gate);
+    }
+}
+
 void Circuit::masterCompile() {
     Logger::add("Total Gates %d", int(gates.size()));
     this->transform();
@@ -550,7 +573,7 @@ void Circuit::masterCompile() {
     }
     Logger::add("Total Groups: %d %d %d %d", int(schedule.localGroups.size()), totalGroups, fullGates, overlapGates);
 #ifdef SHOW_SCHEDULE
-#if MODE == 1 || MODE == 2
+#if MODE == 2
     schedule.dump(numQubits / 2);
 #else
     schedule.dump(numQubits);

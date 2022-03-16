@@ -406,6 +406,10 @@ Gate Gate::DIG(int targetQubit, cpx lo, cpx hi) {
     return g;
 }
 
+int Gate::newID() {
+    return ++globalGateID;
+}
+
 auto gen_01_float = []() {
     return rand() * 1.0 / RAND_MAX;
 };

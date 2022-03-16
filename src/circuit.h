@@ -38,6 +38,7 @@ public:
     bool localAmpAt(idx_t idx, ResultItem& item);
     void add_phase_amplitude_damping_error();
     void dm_with_error();
+    void duplicate_conj();
     const int numQubits;
 
 private:

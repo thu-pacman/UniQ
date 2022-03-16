@@ -260,6 +260,9 @@ int main(int argc, char* argv[]) {
 #if MODE == 2
     c->add_phase_amplitude_damping_error();
 #endif
+#if MODE == 1
+    c->duplicate_conj();
+#endif
     c->compile();
     c->run();
     c->printState();

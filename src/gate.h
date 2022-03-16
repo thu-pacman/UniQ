@@ -90,6 +90,7 @@ struct Gate {
     static Gate V01(int targetQubit, cpx val);
     static Gate RZZ(int targetQubit1, int targetQubit2, value_t angle);
     static Gate MCU(std::vector<int> controlQubits, int targetQubit, std::vector<cpx> params);
+    static int newID();
     static Gate random(int lo, int hi);
     static Gate random(int lo, int hi, GateType type);
     static Gate control(int controlQubit, int targetQubit, GateType type);

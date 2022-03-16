@@ -45,7 +45,6 @@ void CpuExecutor::all2all(int commSize, std::vector<int> comm) {
         deviceStateVec[0], partSize, MPI_Complex,
         new_communicator
     ))
-
 #else
     idx_t partSize = numElements / numSlice;
     for (int xr = 0; xr < commSize; xr++) {
