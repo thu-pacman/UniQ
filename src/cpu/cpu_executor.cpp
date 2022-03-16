@@ -1,4 +1,5 @@
 #include "cpu_executor.h"
+#include "cpu/header.h"
 #include <omp.h>
 #include <cstring>
 #include <assert.h>
@@ -744,7 +745,34 @@ void CpuExecutor::inplaceAll2All(int commSize, std::vector<int> comm, const Stat
     }
 }
 
-void CpuExecutor::dm_transpose()  { UNIMPLEMENTED(); }
+void CpuExecutor::dm_transpose()  {
+    idx_t box_len = ((idx_t(1) << (numQubits / 2)) / MyGlobalVars::numGPUs);
+    int dims_pack[3] = {box_len, MyGlobalVars::numGPUs, box_len};
+    int perm_pack[3] = {0, 2, 1};
+    auto plan_pack = hptt::create_plan(
+        perm_pack, 3,
+        cpx(1.0), deviceStateVec[0], dims_pack, nullptr,
+        cpx(0.0), deviceBuffer[0], nullptr,
+        hptt::ESTIMATE, MyGlobalVars::n_thread
+    );
+    plan_pack->execute();
+    checkMPIErrors(MPI_Alltoall(
+        deviceBuffer[0], box_len * box_len, MPI_Complex,
+        deviceStateVec[0], box_len * box_len, MPI_Complex,
+        MPI_COMM_WORLD
+    ));
+    int perm_unpack[3] = {1, 2, 0}; // 2 0 1
+    int dims_unpack[3] = {box_len, box_len, MyGlobalVars::numGPUs};
+    auto plan_unpack = hptt::create_plan(
+        perm_unpack, 3,
+        cpx(1.0), deviceStateVec[0], dims_unpack, nullptr,
+        cpx(0.0), deviceBuffer[0], nullptr,
+        hptt::ESTIMATE, MyGlobalVars::n_thread
+    );
+    plan_unpack->setConjA(true);
+    plan_unpack->execute();
+    memcpy(deviceStateVec[0], deviceBuffer[0], (sizeof(cpx) << numQubits) / MyGlobalVars::numGPUs);
+}
 void CpuExecutor::launchPerGateGroupSliced(std::vector<Gate>& gates, KernelGate hostGates[], idx_t relatedQubits, int numLocalQubits, int sliceID) { UNIMPLEMENTED(); }
 void CpuExecutor::launchBlasGroup(GateGroup& gg, int numLocalQubits) { UNIMPLEMENTED(); }
 void CpuExecutor::launchBlasGroupSliced(GateGroup& gg, int numLocalQubits, int sliceID) { UNIMPLEMENTED(); }

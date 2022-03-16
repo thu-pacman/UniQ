@@ -533,6 +533,7 @@ bool Circuit::localAmpAt(idx_t idx, ResultItem& item) {
 
 void Circuit::masterCompile() {
     Logger::add("Total Gates %d", int(gates.size()));
+    this->transform();
 #if GPU_BACKEND == 1 || GPU_BACKEND == 2 || GPU_BACKEND == 3 || GPU_BACKEND == 4 || GPU_BACKEND == 5
 #if MODE == 2
     Compiler compiler(numQubits / 2, gates, MyGlobalVars::bit / 2);
@@ -562,7 +563,6 @@ void Circuit::masterCompile() {
 
 void Circuit::compile() {
     auto start = chrono::system_clock::now();
-    this->transform();
 #if USE_MPI
     if (MyMPI::rank == 0) {
         masterCompile();

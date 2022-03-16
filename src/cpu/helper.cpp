@@ -1,4 +1,5 @@
 #include "cpu/entry.h"
+#include "cpu/header.h"
 #include <cstring>
 #include <memory>
 #include "hptt.h"
