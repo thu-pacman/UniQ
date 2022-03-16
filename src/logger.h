@@ -26,13 +26,14 @@ public:
         Logger::init();
         char proc_info[100];
         #if USE_MPI
-            if (MyMPI::commSize > 8 && MyMPI::rank > 0) return;
             sprintf(proc_info, "[%d]", MyMPI::rank);
         #else
             sprintf(proc_info, "%s", ""); // printf("") will cause compilee warning "-Wformat-zero-length"
         #endif
         for (auto& s: instance -> infos) {
-            std::cout << "Logger" << proc_info << ": " << s << std::endl;
+            char buf[1000];
+            sprintf(buf, "Logger%s: %s\n", proc_info, s.c_str());
+            printf("%s", buf);
         }
         instance -> infos.clear();
 #endif
