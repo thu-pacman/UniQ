@@ -18,11 +18,11 @@ void CpuExecutor::all2all(int commSize, std::vector<int> comm) {
     int numLocalQubit = numQubits - MyGlobalVars::bit;
     idx_t numElements = 1ll << numLocalQubit;
     int numPart = numSlice / commSize;
-    idx_t partSize = numElements / numSlice;
     partID.resize(numSlice * MyGlobalVars::localGPUs);
     peer.resize(numSlice * MyGlobalVars::localGPUs);
     int sliceID = 0;
 #ifdef ALL_TO_ALL
+    idx_t partSize = numElements / commSize;
     int newRank = -1;
     for (int i = 0; i < MyGlobalVars::numGPUs; i++) {
         if (comm[i] == MyMPI::rank) {
@@ -46,6 +46,7 @@ void CpuExecutor::all2all(int commSize, std::vector<int> comm) {
     ))
 
 #else
+    idx_t partSize = numElements / numSlice;
     for (int xr = 0; xr < commSize; xr++) {
         for (int p = 0; p < numPart; p++) {
             for (int a = 0; a < MyGlobalVars::numGPUs; a++) {

@@ -133,6 +133,7 @@ else()
 endif(USE_MPI)
 
 if (USE_ALL_TO_ALL)
+    MESSAGE(STATUS "Enable all to all")
     add_definitions(-DALL_TO_ALL)
 endif(USE_ALL_TO_ALL)
 

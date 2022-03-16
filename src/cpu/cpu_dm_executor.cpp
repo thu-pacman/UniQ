@@ -41,6 +41,7 @@ inline void save_data(cpx* deviceStateVec, const value_t* local_real, const valu
 #define CPXS(idx, val) {local_real[idx] = val.real(); local_imag[idx] = val.imag(); }
 
 inline void apply_gate_group(value_t* local_real, value_t* local_imag, int numGates, int blockID, KernelGate hostGates[]) {
+#if MODE == 2
     constexpr int local2 = LOCAL_QUBIT_SIZE * 2;
     for (int i = 0; i < numGates; i++) {
         auto& gate = hostGates[i];
@@ -217,6 +218,9 @@ inline void apply_gate_group(value_t* local_real, value_t* local_imag, int numGa
             }
         }
     }
+#else
+    UNREACHABLE();
+#endif
 }
 
 void CpuDMExecutor::launchPerGateGroupDM(std::vector<Gate>& gates, KernelGate hostGates[], const State& state, idx_t relatedQubits, int numLocalQubits) {
@@ -326,6 +330,34 @@ void CpuDMExecutor::all2all(int commSize, std::vector<int> comm) {
     int numLocalQubit = numQubits - MyGlobalVars::bit / 2;
     idx_t numElements = 1ll << (numLocalQubit * 2);
     int numPart = numSlice / commSize;
+#ifdef ALL_TO_ALL
+    #if USE_MPI
+    idx_t partSize = numElements / commSize;
+    int newRank = -1;
+    for (int i = 0; i < MyGlobalVars::numGPUs; i++) {
+        if (comm[i] == MyMPI::rank) {
+            newRank = i;
+            break;
+        }
+    }
+    MPI_Group world_group, new_group;
+    checkMPIErrors(MPI_Comm_group(MPI_COMM_WORLD, &world_group));
+    int ranks[commSize];
+    for (int i = 0; i < commSize; i++)
+        ranks[i] = (newRank - newRank % commSize) + i;
+    checkMPIErrors(MPI_Group_incl(world_group, commSize, ranks, &new_group));
+    MPI_Comm new_communicator;
+    MPI_Comm_create(MPI_COMM_WORLD, new_group, &new_communicator);
+
+    checkMPIErrors(MPI_Alltoall(
+        deviceBuffer[0], partSize, MPI_Complex,
+        deviceStateVec[0], partSize, MPI_Complex,
+        new_communicator
+    ));
+    #else
+    UNIMPLEMENTED();
+    #endif
+#else
     idx_t partSize = numElements / numSlice;
     for (int xr = 0; xr < commSize; xr++) {
         for (int p = 0; p < numPart; p++) {
@@ -336,7 +368,7 @@ void CpuDMExecutor::all2all(int commSize, std::vector<int> comm) {
                 int comm_a = comm[a] % MyGlobalVars::localGPUs;
                 int srcPart = a % commSize * numPart + p;
                 int dstPart = b % commSize * numPart + p;
-#if USE_MPI
+    #if USE_MPI
                 if (a == b) {
                     memcpy(
                         deviceStateVec[comm_a] + dstPart * partSize,
@@ -350,12 +382,13 @@ void CpuDMExecutor::all2all(int commSize, std::vector<int> comm) {
                         MPI_COMM_WORLD, MPI_STATUS_IGNORE
                     ));
                 }
-#else
+    #else
                 UNIMPLEMENTED();
-#endif
+    #endif
             }
         }
     }
+#endif
 }
 
 void CpuDMExecutor::launchPerGateGroup(std::vector<Gate>& gates, KernelGate hostGates[], const State& state, idx_t relatedQubits, int numLocalQubits) { UNIMPLEMENTED(); }
