@@ -556,6 +556,8 @@ inline void apply_gate_group(value_t* local_real, value_t* local_imag, int numGa
 #endif
 }
 
+#if GPU_BACKEND==1
+
 void CpuDMExecutor::launchPerGateGroupDM(std::vector<Gate>& gates, KernelGate hostGates[], const State& state, idx_t relatedQubits, int numLocalQubits) {
     cpx* sv = deviceStateVec[0];
     unsigned int related2 = duplicate_bit(relatedQubits); // warning: put it in master core
@@ -580,6 +582,173 @@ void CpuDMExecutor::launchPerGateGroupDM(std::vector<Gate>& gates, KernelGate ho
         save_data(sv, local_real, local_imag, bias, related2);
     }
 }
+
+#else
+
+void apply_control_gate(cpx* buffer, int c, int t, cpx g00, cpx g01, cpx g10, cpx g11, int local2) {
+    idx_t low_bit = std::min(c, t);
+    idx_t high_bit = std::max(c, t);
+    idx_t mask_inner = (1 << (local2 - 2)) - (1 << low_bit);
+    idx_t mask_outer = (1 << (local2 - 1)) - (1 << high_bit);
+    #pragma omp for
+    for (idx_t j = 0; j < (idx_t(1) << (local2 - 2)); j++) {
+        idx_t s0 = j + (j & mask_inner);
+        s0 = s0 + (s0 & mask_outer);
+        s0 |= (1 << c);
+        idx_t s1 = s0 | (1 << t);
+        cpx val0 = buffer[s0];
+        cpx val1 = buffer[s1];
+        buffer[s0] = val0 * g00 + val1 * g01;
+        buffer[s1] = val0 * g10 + val1 * g11;
+    }
+}
+
+void apply_single_gate(cpx* buffer, int t, cpx g00, cpx g01, cpx g10, cpx g11, int local2) {
+    idx_t mask_inner = (1 << (local2 - 1)) - (1 << t);
+    #pragma omp for
+    for (idx_t j = 0; j < (idx_t(1) << (local2 - 1)); j++) {
+        idx_t lo = j + (j & mask_inner);
+        idx_t hi = lo | (idx_t(1) << t);
+        // printf("pair %lld %lld\n", lo, hi);
+        cpx lo_val = buffer[lo];
+        cpx hi_val = buffer[hi];
+        buffer[lo] = lo_val * g00 + hi_val * g01;
+        buffer[hi] = lo_val * g10 + hi_val * g11;
+    }
+}
+
+void apply_twoqubit_gate(cpx* buffer, int t1, int t2, cpx g00, cpx g01, cpx g10, cpx g11, int local2) {
+    idx_t low_bit = std::min(t1, t2);
+    idx_t high_bit = std::max(t1, t2);
+    idx_t mask_inner = (1 << (local2 - 2)) - (1 << low_bit);
+    idx_t mask_outer = (1 << (local2 - 1)) - (1 << high_bit);
+    #pragma omp for
+    for (int j = 0; j < (idx_t(1) << (local2 - 2)); j++) {
+        int s00 = j + (j & mask_inner);
+        s00 = s00 + (s00 & mask_outer);
+        int s01 = s00 | (1 << t1);
+        int s10 = s00 | (1 << t2);
+        int s11 = s01 | s10;
+
+        cpx val00 = buffer[s00];
+        cpx val01 = buffer[s01];
+        cpx val10 = buffer[s10];
+        cpx val11 = buffer[s11];
+
+        buffer[s00] = val00 * g00 + val11 * g11;
+        buffer[s01] = val01 * g01 + val10 * g10;
+        buffer[s10] = val01 * g10 + val10 * g01;
+        buffer[s11] = val00 * g11 + val11 * g00;
+    }
+}
+
+void apply_error(cpx* buffer, int qid, cpx (*ee)[2][2], int err_len, int local2) {
+    int mask_inner = (1 << (local2 - 2)) - (1 << qid);
+    #pragma omp for
+    for (int j = 0; j < (idx_t(1) << (local2 - 2)); j++) {
+        int s00 = j + (j & mask_inner) * 3;
+        int s01 = s00 | (1 << qid);
+        int s10 = s00 | (1 << (qid + 1));
+        int s11 = s01 | s10;
+        cpx val00 = buffer[s00];
+        cpx val01 = buffer[s01];
+        cpx val10 = buffer[s10];
+        cpx val11 = buffer[s11];
+
+        cpx sum00 = cpx(0.0), sum01 = cpx(0.0), sum10 = cpx(0.0), sum11=cpx(0.0);
+        for (int k = 0; k < err_len; k++) {
+            cpx (*e)[2] = ee[k];
+            cpx w00 = e[0][0] * val00 + e[0][1] * val10;
+            cpx w01 = e[0][0] * val01 + e[0][1] * val11;
+            cpx w10 = e[1][0] * val00 + e[1][1] * val10;
+            cpx w11 = e[1][0] * val01 + e[1][1] * val11;
+            sum00 += w00 * std::conj(e[0][0]) + w01 * std::conj(e[0][1]);
+            sum01 += w00 * std::conj(e[1][0]) + w01 * std::conj(e[1][1]);
+            sum10 += w10 * std::conj(e[0][0]) + w11 * std::conj(e[0][1]);
+            sum11 += w10 * std::conj(e[1][0]) + w11 * std::conj(e[1][1]);
+        }
+
+        buffer[s00] = sum00;
+        buffer[s01] = sum01;
+        buffer[s10] = sum10;
+        buffer[s11] = sum11;
+    }
+}
+
+#define FOLLOW_NEXT(TYPE) \
+case GateType::TYPE: // no break
+
+void CpuDMExecutor::launchPerGateGroupDM(std::vector<Gate>& gates, KernelGate hostGates[], const State& state, idx_t relatedQubits, int numLocalQubits) {
+    int local2 = numLocalQubits * 2;
+    #pragma omp parallel
+    for (int i = 0; i < int(gates.size()); i++) {
+        auto& gate = hostGates[i];
+        switch (gate.type) {
+            FOLLOW_NEXT(CNOT)
+            FOLLOW_NEXT(CY)
+            FOLLOW_NEXT(CZ)
+            FOLLOW_NEXT(CRX)
+            FOLLOW_NEXT(CRY)
+            FOLLOW_NEXT(CU1)
+            FOLLOW_NEXT(CRZ)
+            case GateType::CU: {
+                int c = gate.controlQubit * 2;
+                int t = gate.targetQubit * 2;
+                apply_control_gate(deviceStateVec[0], c, t, cpx(gate.r00, gate.i00), cpx(gate.r01, gate.i01), cpx(gate.r10, gate.i10), cpx(gate.r11, gate.i11), local2);
+                apply_control_gate(deviceStateVec[0], c + 1, t + 1, cpx(gate.r00, -gate.i00), cpx(gate.r01, -gate.i01), cpx(gate.r10, -gate.i10), cpx(gate.r11, -gate.i11), local2);
+                break;
+            }
+            FOLLOW_NEXT(U1)
+            FOLLOW_NEXT(U2)
+            FOLLOW_NEXT(U3)
+            FOLLOW_NEXT(U)
+            FOLLOW_NEXT(H)
+            FOLLOW_NEXT(X)
+            FOLLOW_NEXT(Y)
+            FOLLOW_NEXT(Z)
+            FOLLOW_NEXT(S)
+            FOLLOW_NEXT(SDG)
+            FOLLOW_NEXT(T)
+            FOLLOW_NEXT(TDG)
+            FOLLOW_NEXT(RX)
+            FOLLOW_NEXT(RY)
+            FOLLOW_NEXT(RZ)
+            FOLLOW_NEXT(ID)
+            FOLLOW_NEXT(GII)
+            FOLLOW_NEXT(GZZ)
+            FOLLOW_NEXT(GOC)
+            case GateType::GCC: {
+                int t = gate.targetQubit * 2;
+                apply_single_gate(deviceStateVec[0], t, cpx(gate.r00, gate.i00), cpx(gate.r01, gate.i01), cpx(gate.r10, gate.i10), cpx(gate.r11, gate.i11), local2);
+                #pragma omp barrier
+                apply_single_gate(deviceStateVec[0], t + 1, cpx(gate.r00, -gate.i00), cpx(gate.r01, -gate.i01), cpx(gate.r10, -gate.i10), cpx(gate.r11, -gate.i11), local2);
+                #pragma omp barrier
+                break;
+            }
+            case GateType::RZZ: {
+                int t1 = gate.encodeQubit * 2;
+                int t2 = gate.targetQubit * 2;
+                apply_twoqubit_gate(deviceStateVec[0], t1, t2, cpx(gate.r00, gate.i00), cpx(gate.r01, gate.i01), cpx(gate.r10, gate.i10), cpx(gate.r11, gate.i11), local2);
+                #pragma omp barrier
+                apply_twoqubit_gate(deviceStateVec[0], t1 + 1, t2 + 1, cpx(gate.r00, -gate.i00), cpx(gate.r01, -gate.i01), cpx(gate.r10, -gate.i10), cpx(gate.r11, -gate.i11), local2);
+                #pragma omp barrier
+                break;
+            }
+            default: {
+                UNIMPLEMENTED();
+            }
+        }
+        if (gate.err_len_target > 0) {
+            apply_error(deviceStateVec[0], gate.targetQubit * 2, gate.errs_target, gate.err_len_target, local2);
+        }
+        if (gate.err_len_control > 0) {
+            int qid = hostGates[i].controlQubit == -3? hostGates[i].encodeQubit: hostGates[i].controlQubit;
+            apply_error(deviceStateVec[0], qid * 2, gate.errs_control, gate.err_len_control, local2);
+        }
+    }
+}
+
+#endif
 
 void CpuDMExecutor::dm_transpose() { UNIMPLEMENTED(); }
 
