@@ -536,13 +536,17 @@ void Circuit::duplicate_conj() {
         gate.targetQubit += nd2;
         if (gate.isControlGate()) {
             gate.controlQubit +=nd2;
-            gate.type = GateType::CU;
-            gate.name = "CU";
+            if (gate.type == GateType::CY) {
+                gate.type = GateType::CU;
+                gate.name = "CU";
+            }
         } else if (gate.isTwoQubitGate()) {
             gate.encodeQubit += nd2;
         } else if (gate.isSingleGate()) {
-            gate.type = GateType::U;
-            gate.name = "U";
+            if (gate.type == GateType::Y || gate.type == GateType::S || gate.type == GateType::SDG || gate.type == GateType::T || gate.type == GateType::TDG || gate.type == GateType::GII) {
+                gate.type = GateType::U;
+                gate.name = "U";
+            }
         } else {
             UNIMPLEMENTED();
         }

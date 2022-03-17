@@ -1,6 +1,7 @@
 #include "cpu/cpu_dm_executor.h"
 #include <assert.h>
 #include <cstring>
+#include <x86intrin.h>
 
 namespace CpuImpl {
 
@@ -39,6 +40,38 @@ inline void save_data(cpx* deviceStateVec, const value_t* local_real, const valu
 
 #define CPXL(idx) (cpx(local_real[idx], local_imag[idx]))
 #define CPXS(idx, val) {local_real[idx] = val.real(); local_imag[idx] = val.imag(); }
+#define GATHER8(tr, ti, idx) __m512d tr = _mm512_i32gather_pd(idx, local_real, 8); __m512d ti = _mm512_i32gather_pd(idx, local_imag, 8);
+#define SCATTER8(tr, ti, idx) _mm512_i32scatter_pd(local_real, idx, tr, 8); _mm512_i32scatter_pd(local_imag, idx, ti, 8);
+#define NEW_ZERO_REG(reg) __m512d reg = _mm512_set1_pd(0.0);
+#define LD_REG(tr, ti, val) __m512d tr = _mm512_set1_pd((val).real()); __m512d ti = _mm512_set1_pd((val).imag());
+
+// t = a*b + c*d
+// tr = ar * br - ai * bi + cr * dr - ci * di
+// ti = ar * bi + ai * br + cr * di + ci * dr
+#define CALC_AB_ADD_CD(tr, ti, ar, ai, br, bi, cr, ci, dr, di) \
+    __m512d tr = _mm512_fnmadd_pd(ci, di, _mm512_fmadd_pd(cr, dr, _mm512_fnmadd_pd(ai, bi, _mm512_mul_pd(ar, br)))); \
+    __m512d ti = _mm512_fmadd_pd(ci, dr, _mm512_fmadd_pd(cr, di, _mm512_fmadd_pd(ai, br, _mm512_mul_pd(ar, bi))));
+
+// s = s + a*conj(b) + c*conj(d)
+// sr = sr + ar * br + ai * bi + cr * dr + ci * di
+// si = si - ar * bi + ai * br - cr * di + ci * dr
+#define CALC_ADD_AB_ADD_CD_NT(sr, si, ar, ai, br, bi, cr, ci, dr, di) \
+    sr = _mm512_fmadd_pd(ci, di, _mm512_fmadd_pd(cr, dr, _mm512_fmadd_pd(ai, bi, _mm512_fmadd_pd(ar, br, sr)))); \
+    si = _mm512_fmadd_pd(ci, dr, _mm512_fnmadd_pd(cr, di, _mm512_fmadd_pd(ai, br, _mm512_fnmadd_pd(ar, bi, si))));
+
+#ifdef USE_AVX512
+
+void dbgv(const char* name, __m256i reg) {
+    int val[8];
+    memcpy(val, &reg, sizeof(reg));
+    printf("%s: %d %d %d %d %d %d %d %d\n", name, val[0], val[1], val[2], val[3], val[4], val[5], val[6], val[7]);
+}
+void dbgv(const char* name, __m512d reg) {
+    double val[8];
+    memcpy(val, &reg, sizeof(reg));
+    printf("%s: %f %f %f %f %f %f %f %f\n", name, val[0], val[1], val[2], val[3], val[4], val[5], val[6], val[7]);
+}
+#endif
 
 inline void apply_gate_group(value_t* local_real, value_t* local_imag, int numGates, int blockID, KernelGate hostGates[]) {
 #if MODE == 2
@@ -58,6 +91,125 @@ inline void apply_gate_group(value_t* local_real, value_t* local_imag, int numGa
                 int m = 1 << (local2 - 2);
                 int low_bit = std::min(controlQubit, targetQubit);
                 int high_bit = std::max(controlQubit, targetQubit);
+#ifdef USE_AVX512
+                __m256i mask_inner = _mm256_set1_epi32((1 << (local2 - 2)) - (1 << low_bit));
+                __m256i mask_outer = _mm256_set1_epi32((1 << (local2 - 1)) - (1 << high_bit));
+                __m256i ctr_flag = _mm256_set1_epi32(1 << controlQubit);
+                __m256i tar_flag = _mm256_set1_epi32(1 << targetQubit);
+                __m256i idx = _mm256_set_epi32(0, 1, 2, 3, 4, 5, 6, 7);
+                const __m256i inc = _mm256_set1_epi32(8);
+                for (int j = 0; j < m; j += 8) {
+                    __m256i lo = _mm256_add_epi32(idx, _mm256_and_si256(idx, mask_inner));
+                    lo = _mm256_add_epi32(lo, _mm256_and_si256(lo, mask_outer));
+                    __m256i s00 = lo;
+                    __m256i s01 = _mm256_add_epi32(s00, ctr_flag);
+                    __m256i s10 = _mm256_add_epi32(s00, tar_flag);
+                    __m256i s11 = _mm256_or_si256(s01, s10);
+
+                    __m512d v00_real = _mm512_i32gather_pd(s00, local_real, 8);
+                    __m512d v00_imag = _mm512_i32gather_pd(s00, local_imag, 8);
+                    __m512d v11_real = _mm512_i32gather_pd(s11, local_real, 8);
+                    __m512d v11_imag = _mm512_i32gather_pd(s11, local_imag, 8);
+                    __m512d r00 = _mm512_set1_pd(gate.r00);
+                    __m512d i00 = _mm512_set1_pd(gate.i00);
+                    __m512d r11 = _mm512_set1_pd(gate.r11);
+                    __m512d i11 = _mm512_set1_pd(gate.i11);
+                    __m512d v00_real_new = _mm512_fnmadd_pd(v00_imag, i00, _mm512_mul_pd(v00_real, r00));
+                    v00_real_new = _mm512_fnmadd_pd(v11_imag, i11, _mm512_fmadd_pd(v11_real, r11, v00_real_new));
+                    __m512d v00_imag_new = _mm512_fmadd_pd(v00_imag, r00, _mm512_mul_pd(v00_real, i00));
+                    v00_imag_new = _mm512_fmadd_pd(v11_imag, r11, _mm512_fmadd_pd(v11_real, i11, v00_imag_new));
+                    _mm512_i32scatter_pd(local_real, s00, v00_real_new, 8);
+                    _mm512_i32scatter_pd(local_imag, s00, v00_imag_new, 8);
+                    __m512d v11_real_new = _mm512_fnmadd_pd(v11_imag, i00, _mm512_mul_pd(v11_real, r00));
+                    v11_real_new = _mm512_fnmadd_pd(v00_imag, i11, _mm512_fmadd_pd(v00_real, r11, v11_real_new));
+                    __m512d v11_imag_new = _mm512_fmadd_pd(v11_imag, r00, _mm512_mul_pd(v11_real, i00));
+                    v11_imag_new = _mm512_fmadd_pd(v00_imag, r11, _mm512_fmadd_pd(v00_real, i11, v11_imag_new));
+                    _mm512_i32scatter_pd(local_real, s11, v11_real_new, 8);
+                    _mm512_i32scatter_pd(local_imag, s11, v11_imag_new, 8);
+
+                    __m512d v01_real = _mm512_i32gather_pd(s01, local_real, 8);
+                    __m512d v01_imag = _mm512_i32gather_pd(s01, local_imag, 8);
+                    __m512d v10_real = _mm512_i32gather_pd(s10, local_real, 8);
+                    __m512d v10_imag = _mm512_i32gather_pd(s10, local_imag, 8);
+                    __m512d r01 = _mm512_set1_pd(gate.r01);
+                    __m512d i01 = _mm512_set1_pd(gate.i01);
+                    __m512d r10 = _mm512_set1_pd(gate.r10);
+                    __m512d i10 = _mm512_set1_pd(gate.i10);
+                    __m512d v01_real_new = _mm512_fnmadd_pd(v01_imag, i01, _mm512_mul_pd(v01_real, r01));
+                    v01_real_new = _mm512_fnmadd_pd(v10_imag, i10, _mm512_fmadd_pd(v10_real, r10, v01_real_new));
+                    __m512d v01_imag_new = _mm512_fmadd_pd(v01_imag, r01, _mm512_mul_pd(v01_real, i01));
+                    v01_imag_new = _mm512_fmadd_pd(v10_imag, r10, _mm512_fmadd_pd(v10_real, i10, v01_imag_new));
+                    _mm512_i32scatter_pd(local_real, s01, v01_real_new, 8);
+                    _mm512_i32scatter_pd(local_imag, s01, v01_imag_new, 8);
+                    __m512d v10_real_new = _mm512_fnmadd_pd(v10_imag, i01, _mm512_mul_pd(v10_real, r01));
+                    v10_real_new = _mm512_fnmadd_pd(v01_imag, i10, _mm512_fmadd_pd(v01_real, r10, v10_real_new));
+                    __m512d v10_imag_new = _mm512_fmadd_pd(v10_imag, r01, _mm512_mul_pd(v10_real, i01));
+                    v10_imag_new = _mm512_fmadd_pd(v01_imag, r10, _mm512_fmadd_pd(v01_real, i10, v10_imag_new));
+                    _mm512_i32scatter_pd(local_real, s10, v10_real_new, 8);
+                    _mm512_i32scatter_pd(local_imag, s10, v10_imag_new, 8);
+
+                    idx = _mm256_add_epi32(idx, inc);
+                }
+                low_bit++; high_bit++;
+                mask_inner = _mm256_set1_epi32((1 << (local2 - 2)) - (1 << low_bit));
+                mask_outer = _mm256_set1_epi32((1 << (local2 - 1)) - (1 << high_bit));
+                ctr_flag = _mm256_set1_epi32(1 << (controlQubit + 1));
+                tar_flag = _mm256_set1_epi32(1 << (targetQubit + 1));
+                idx = _mm256_set_epi32(0, 1, 2, 3, 4, 5, 6, 7);
+                for (int j = 0; j < m; j += 8) {
+                    __m256i lo = _mm256_add_epi32(idx, _mm256_and_si256(idx, mask_inner));
+                    lo = _mm256_add_epi32(lo, _mm256_and_si256(lo, mask_outer));
+                    __m256i s00 = lo;
+                    __m256i s01 = _mm256_add_epi32(s00, ctr_flag);
+                    __m256i s10 = _mm256_add_epi32(s00, tar_flag);
+                    __m256i s11 = _mm256_or_si256(s01, s10);
+
+                    __m512d v00_real = _mm512_i32gather_pd(s00, local_real, 8);
+                    __m512d v00_imag = _mm512_i32gather_pd(s00, local_imag, 8);
+                    __m512d v11_real = _mm512_i32gather_pd(s11, local_real, 8);
+                    __m512d v11_imag = _mm512_i32gather_pd(s11, local_imag, 8);
+                    __m512d r00 = _mm512_set1_pd(gate.r00);
+                    __m512d i00 = -_mm512_set1_pd(gate.i00);
+                    __m512d r11 = _mm512_set1_pd(gate.r11);
+                    __m512d i11 = -_mm512_set1_pd(gate.i11);
+                    __m512d v00_real_new = _mm512_fnmadd_pd(v00_imag, i00, _mm512_mul_pd(v00_real, r00));
+                    v00_real_new = _mm512_fnmadd_pd(v11_imag, i11, _mm512_fmadd_pd(v11_real, r11, v00_real_new));
+                    __m512d v00_imag_new = _mm512_fmadd_pd(v00_imag, r00, _mm512_mul_pd(v00_real, i00));
+                    v00_imag_new = _mm512_fmadd_pd(v11_imag, r11, _mm512_fmadd_pd(v11_real, i11, v00_imag_new));
+                    _mm512_i32scatter_pd(local_real, s00, v00_real_new, 8);
+                    _mm512_i32scatter_pd(local_imag, s00, v00_imag_new, 8);
+                    __m512d v11_real_new = _mm512_fnmadd_pd(v11_imag, i00, _mm512_mul_pd(v11_real, r00));
+                    v11_real_new = _mm512_fnmadd_pd(v00_imag, i11, _mm512_fmadd_pd(v00_real, r11, v11_real_new));
+                    __m512d v11_imag_new = _mm512_fmadd_pd(v11_imag, r00, _mm512_mul_pd(v11_real, i00));
+                    v11_imag_new = _mm512_fmadd_pd(v00_imag, r11, _mm512_fmadd_pd(v00_real, i11, v11_imag_new));
+                    _mm512_i32scatter_pd(local_real, s11, v11_real_new, 8);
+                    _mm512_i32scatter_pd(local_imag, s11, v11_imag_new, 8);
+
+                    __m512d v01_real = _mm512_i32gather_pd(s01, local_real, 8);
+                    __m512d v01_imag = _mm512_i32gather_pd(s01, local_imag, 8);
+                    __m512d v10_real = _mm512_i32gather_pd(s10, local_real, 8);
+                    __m512d v10_imag = _mm512_i32gather_pd(s10, local_imag, 8);
+                    __m512d r01 = _mm512_set1_pd(gate.r01);
+                    __m512d i01 = -_mm512_set1_pd(gate.i01);
+                    __m512d r10 = _mm512_set1_pd(gate.r10);
+                    __m512d i10 = -_mm512_set1_pd(gate.i10);
+                    __m512d v01_real_new = _mm512_fnmadd_pd(v01_imag, i01, _mm512_mul_pd(v01_real, r01));
+                    v01_real_new = _mm512_fnmadd_pd(v10_imag, i10, _mm512_fmadd_pd(v10_real, r10, v01_real_new));
+                    __m512d v01_imag_new = _mm512_fmadd_pd(v01_imag, r01, _mm512_mul_pd(v01_real, i01));
+                    v01_imag_new = _mm512_fmadd_pd(v10_imag, r10, _mm512_fmadd_pd(v10_real, i10, v01_imag_new));
+                    _mm512_i32scatter_pd(local_real, s01, v01_real_new, 8);
+                    _mm512_i32scatter_pd(local_imag, s01, v01_imag_new, 8);
+                    __m512d v10_real_new = _mm512_fnmadd_pd(v10_imag, i01, _mm512_mul_pd(v10_real, r01));
+                    v10_real_new = _mm512_fnmadd_pd(v01_imag, i10, _mm512_fmadd_pd(v01_real, r10, v10_real_new));
+                    __m512d v10_imag_new = _mm512_fmadd_pd(v10_imag, r01, _mm512_mul_pd(v10_real, i01));
+                    v10_imag_new = _mm512_fmadd_pd(v01_imag, r10, _mm512_fmadd_pd(v01_real, i10, v10_imag_new));
+                    _mm512_i32scatter_pd(local_real, s10, v10_real_new, 8);
+                    _mm512_i32scatter_pd(local_imag, s10, v10_imag_new, 8);
+
+                    idx = _mm256_add_epi32(idx, inc);
+                }
+
+#else
                 int mask_inner = (1 << (local2 - 2)) - (1 << low_bit);
                 int mask_outer = (1 << (local2 - 1)) - (1 << high_bit);
                 for (int j = 0; j < m; j++) {
@@ -108,12 +260,95 @@ inline void apply_gate_group(value_t* local_real, value_t* local_imag, int numGa
                     CPXS(s10, val10_new)
                     CPXS(s11, val11_new)
                 }
+#endif
             } else { // controlled gate
                 controlQubit *= 2;
                 targetQubit *= 2;
                 int m = 1 << (local2 - 2);
                 int low_bit = std::min(controlQubit, targetQubit);
                 int high_bit = std::max(controlQubit, targetQubit);
+#ifdef USE_AVX512
+                __m256i mask_inner = _mm256_set1_epi32((1 << (local2 - 2)) - (1 << low_bit));
+                __m256i mask_outer = _mm256_set1_epi32((1 << (local2 - 1)) - (1 << high_bit));
+                __m256i ctr_flag = _mm256_set1_epi32(1 << controlQubit);
+                __m256i tar_flag = _mm256_set1_epi32(1 << targetQubit);
+                assert(m % 8 == 0);
+                __m256i idx = _mm256_set_epi32(0, 1, 2, 3, 4, 5, 6, 7);
+                const __m256i inc = _mm256_set1_epi32(8);
+                for (int j = 0; j < m; j += 8) {
+                    __m256i lo = _mm256_add_epi32(idx, _mm256_and_si256(idx, mask_inner));
+                    lo = _mm256_add_epi32(lo, _mm256_and_si256(lo, mask_outer));
+                    lo = _mm256_add_epi32(lo, ctr_flag);
+                    __m256i hi = _mm256_add_epi32(lo, tar_flag);
+                    // lo = _mm256_add_epi32(lo, lo);
+                    // hi = _mm256_add_epi32(hi, hi);
+                    __m512d lo_real = _mm512_i32gather_pd(lo, local_real, 8);
+                    __m512d lo_imag = _mm512_i32gather_pd(lo, local_imag, 8);
+                    __m512d hi_real = _mm512_i32gather_pd(hi, local_real, 8);
+                    __m512d hi_imag = _mm512_i32gather_pd(hi, local_imag, 8);
+                    __m512d r00 = _mm512_set1_pd(gate.r00);
+                    __m512d i00 = _mm512_set1_pd(gate.i00);
+                    __m512d r01 = _mm512_set1_pd(gate.r01);
+                    __m512d i01 = _mm512_set1_pd(gate.i01);
+                    __m512d lo_real_new = _mm512_fnmadd_pd(lo_imag, i00, _mm512_mul_pd(lo_real, r00));
+                    lo_real_new = _mm512_fnmadd_pd(hi_imag, i01, _mm512_fmadd_pd(hi_real, r01, lo_real_new));
+                    __m512d lo_imag_new = _mm512_fmadd_pd(lo_imag, r00, _mm512_mul_pd(lo_real, i00));
+                    lo_imag_new = _mm512_fmadd_pd(hi_imag, r01, _mm512_fmadd_pd(hi_real, i01, lo_imag_new));
+                    _mm512_i32scatter_pd(local_real, lo, lo_real_new, 8);
+                    _mm512_i32scatter_pd(local_imag, lo, lo_imag_new, 8);
+                    __m512d r10 = _mm512_set1_pd(gate.r10);
+                    __m512d i10 = _mm512_set1_pd(gate.i10);
+                    __m512d hi_real_new = _mm512_fnmadd_pd(lo_imag, i10, _mm512_mul_pd(lo_real, r10));
+                    __m512d r11 = _mm512_set1_pd(gate.r11);
+                    __m512d i11 = _mm512_set1_pd(gate.i11);
+                    hi_real_new = _mm512_fnmadd_pd(hi_imag, i11, _mm512_fmadd_pd(hi_real, r11, hi_real_new));
+                    __m512d hi_imag_new = _mm512_fmadd_pd(lo_imag, r10, _mm512_mul_pd(lo_real, i10));
+                    hi_imag_new = _mm512_fmadd_pd(hi_imag, r11, _mm512_fmadd_pd(hi_real, i11, hi_imag_new));
+                    _mm512_i32scatter_pd(local_real, hi, hi_real_new, 8);
+                    _mm512_i32scatter_pd(local_imag, hi, hi_imag_new, 8);
+                    idx = _mm256_add_epi32(idx, inc);
+                }
+                low_bit++; high_bit++;
+                mask_inner = _mm256_set1_epi32((1 << (local2 - 2)) - (1 << low_bit));
+                mask_outer = _mm256_set1_epi32((1 << (local2 - 1)) - (1 << high_bit));
+                ctr_flag = _mm256_set1_epi32(1 << (controlQubit + 1));
+                tar_flag = _mm256_set1_epi32(1 << (targetQubit + 1));
+                assert(m % 8 == 0);
+                idx = _mm256_set_epi32(0, 1, 2, 3, 4, 5, 6, 7);
+                for (int j = 0; j < m; j += 8) {
+                    __m256i lo = _mm256_add_epi32(idx, _mm256_and_si256(idx, mask_inner));
+                    lo = _mm256_add_epi32(lo, _mm256_and_si256(lo, mask_outer));
+                    lo = _mm256_add_epi32(lo, ctr_flag);
+                    __m256i hi = _mm256_add_epi32(lo, tar_flag);
+                    // lo = _mm256_add_epi32(lo, lo);
+                    // hi = _mm256_add_epi32(hi, hi);
+                    __m512d lo_real = _mm512_i32gather_pd(lo, local_real, 8);
+                    __m512d lo_imag = _mm512_i32gather_pd(lo, local_imag, 8);
+                    __m512d hi_real = _mm512_i32gather_pd(hi, local_real, 8);
+                    __m512d hi_imag = _mm512_i32gather_pd(hi, local_imag, 8);
+                    __m512d r00 = _mm512_set1_pd(gate.r00);
+                    __m512d i00 = -_mm512_set1_pd(gate.i00);
+                    __m512d r01 = _mm512_set1_pd(gate.r01);
+                    __m512d i01 = -_mm512_set1_pd(gate.i01);
+                    __m512d lo_real_new = _mm512_fnmadd_pd(lo_imag, i00, _mm512_mul_pd(lo_real, r00));
+                    lo_real_new = _mm512_fnmadd_pd(hi_imag, i01, _mm512_fmadd_pd(hi_real, r01, lo_real_new));
+                    __m512d lo_imag_new = _mm512_fmadd_pd(lo_imag, r00, _mm512_mul_pd(lo_real, i00));
+                    lo_imag_new = _mm512_fmadd_pd(hi_imag, r01, _mm512_fmadd_pd(hi_real, i01, lo_imag_new));
+                    _mm512_i32scatter_pd(local_real, lo, lo_real_new, 8);
+                    _mm512_i32scatter_pd(local_imag, lo, lo_imag_new, 8);
+                    __m512d r10 = _mm512_set1_pd(gate.r10);
+                    __m512d i10 = -_mm512_set1_pd(gate.i10);
+                    __m512d hi_real_new = _mm512_fnmadd_pd(lo_imag, i10, _mm512_mul_pd(lo_real, r10));
+                    __m512d r11 = _mm512_set1_pd(gate.r11);
+                    __m512d i11 = -_mm512_set1_pd(gate.i11);
+                    hi_real_new = _mm512_fnmadd_pd(hi_imag, i11, _mm512_fmadd_pd(hi_real, r11, hi_real_new));
+                    __m512d hi_imag_new = _mm512_fmadd_pd(lo_imag, r10, _mm512_mul_pd(lo_real, i10));
+                    hi_imag_new = _mm512_fmadd_pd(hi_imag, r11, _mm512_fmadd_pd(hi_real, i11, hi_imag_new));
+                    _mm512_i32scatter_pd(local_real, hi, hi_real_new, 8);
+                    _mm512_i32scatter_pd(local_imag, hi, hi_imag_new, 8);
+                    idx = _mm256_add_epi32(idx, inc);
+                }
+#else
                 int mask_inner = (1 << (local2 - 2)) - (1 << low_bit);
                 int mask_outer = (1 << (local2 - 1)) - (1 << high_bit);
                 for (int j = 0; j < m; j++) {
@@ -145,13 +380,61 @@ inline void apply_gate_group(value_t* local_real, value_t* local_imag, int numGa
                     CPXS(s0, val0_new)
                     CPXS(s1, val1_new)
                 }
-
+#endif
             }
         }
         if (hostGates[i].err_len_target > 0) {
             int m = 1 << (local2 - 2);
             int qid = hostGates[i].targetQubit * 2;
             int numErrors = hostGates[i].err_len_target;
+#ifdef USE_AVX512
+            __m256i mask_inner = _mm256_set1_epi32((1 << (local2 - 2)) - (1 << qid));
+            const __m256i inc = _mm256_set1_epi32(8);
+            const __m256i mul = _mm256_set1_epi32(3);
+            const __m256i inner_flag = _mm256_set1_epi32(1 << qid);
+            const __m256i outer_flag = _mm256_set1_epi32(1 << (qid + 1));
+            __m256i idx = _mm256_set_epi32(0, 1, 2, 3, 4, 5, 6, 7);
+            for (int j = 0; j < m; j += 8) {
+                __m256i tmp = _mm256_and_si256(idx, mask_inner);
+                __m256i s00 = _mm256_add_epi32(idx, _mm256_add_epi32(tmp, _mm256_add_epi32(tmp, tmp))); // _mm256_mul_epi32 only multiplies 4 values
+                __m256i s01 = _mm256_add_epi32(s00, inner_flag);
+                __m256i s10 = _mm256_add_epi32(s00, outer_flag);
+                __m256i s11 = _mm256_or_si256(s01, s10);
+                GATHER8(val00_real, val00_imag, s00)
+                GATHER8(val01_real, val01_imag, s01)
+                GATHER8(val10_real, val10_imag, s10)
+                GATHER8(val11_real, val11_imag, s11)
+                NEW_ZERO_REG(sum00_real)
+                NEW_ZERO_REG(sum00_imag)
+                NEW_ZERO_REG(sum01_real)
+                NEW_ZERO_REG(sum01_imag)
+                NEW_ZERO_REG(sum10_real)
+                NEW_ZERO_REG(sum10_imag)
+                NEW_ZERO_REG(sum11_real)
+                NEW_ZERO_REG(sum11_imag)
+
+                for (int k = 0; k < numErrors; k++) {
+                    cpx (*e)[2] = hostGates[i].errs_target[k];
+                    LD_REG(e00_real, e00_imag, e[0][0]);
+                    LD_REG(e01_real, e01_imag, e[0][1]);
+                    LD_REG(e10_real, e10_imag, e[1][0]);
+                    LD_REG(e11_real, e11_imag, e[1][1]);
+                    CALC_AB_ADD_CD(w00_real, w00_imag, e00_real, e00_imag, val00_real, val00_imag, e01_real, e01_imag, val10_real, val10_imag);
+                    CALC_AB_ADD_CD(w01_real, w01_imag, e00_real, e00_imag, val01_real, val01_imag, e01_real, e01_imag, val11_real, val11_imag);
+                    CALC_AB_ADD_CD(w10_real, w10_imag, e10_real, e10_imag, val00_real, val00_imag, e11_real, e11_imag, val10_real, val10_imag);
+                    CALC_AB_ADD_CD(w11_real, w11_imag, e10_real, e10_imag, val01_real, val01_imag, e11_real, e11_imag, val11_real, val11_imag);
+                    CALC_ADD_AB_ADD_CD_NT(sum00_real, sum00_imag, w00_real, w00_imag, e00_real, e00_imag, w01_real, w01_imag, e01_real, e01_imag);
+                    CALC_ADD_AB_ADD_CD_NT(sum01_real, sum01_imag, w00_real, w00_imag, e10_real, e10_imag, w01_real, w01_imag, e11_real, e11_imag);
+                    CALC_ADD_AB_ADD_CD_NT(sum10_real, sum10_imag, w10_real, w10_imag, e00_real, e00_imag, w11_real, w11_imag, e01_real, e01_imag);
+                    CALC_ADD_AB_ADD_CD_NT(sum11_real, sum11_imag, w10_real, w10_imag, e10_real, e10_imag, w11_real, w11_imag, e11_real, e11_imag);
+                }
+                SCATTER8(sum00_real, sum00_imag, s00);
+                SCATTER8(sum01_real, sum01_imag, s01);
+                SCATTER8(sum10_real, sum10_imag, s10);
+                SCATTER8(sum11_real, sum11_imag, s11);
+                idx = _mm256_add_epi32(idx, inc);
+            }
+#else
             int mask_inner = (1 << (local2 - 2)) - (1 << qid);
             for (int j = 0; j < m; j++) {
                 int s00 = j + (j & mask_inner) * 3;
@@ -181,12 +464,61 @@ inline void apply_gate_group(value_t* local_real, value_t* local_imag, int numGa
                 CPXS(s10, sum10)
                 CPXS(s11, sum11)
             }
+#endif
         }
         if (hostGates[i].err_len_control > 0) {
             int m = 1 << (LOCAL_QUBIT_SIZE * 2 - 2);
             int qid = hostGates[i].controlQubit == -3? hostGates[i].encodeQubit: hostGates[i].controlQubit;
             qid *= 2;
             int numErrors = hostGates[i].err_len_control;
+#ifdef USE_AVX512
+            __m256i mask_inner = _mm256_set1_epi32((1 << (local2 - 2)) - (1 << qid));
+            const __m256i inc = _mm256_set1_epi32(8);
+            const __m256i mul = _mm256_set1_epi32(3);
+            const __m256i inner_flag = _mm256_set1_epi32(1 << qid);
+            const __m256i outer_flag = _mm256_set1_epi32(1 << (qid + 1));
+            __m256i idx = _mm256_set_epi32(0, 1, 2, 3, 4, 5, 6, 7);
+            for (int j = 0; j < m; j += 8) {
+                __m256i tmp = _mm256_and_si256(idx, mask_inner);
+                __m256i s00 = _mm256_add_epi32(idx, _mm256_add_epi32(tmp, _mm256_add_epi32(tmp, tmp))); // _mm256_mul_epi32 only multiplies 4 values
+                __m256i s01 = _mm256_add_epi32(s00, inner_flag);
+                __m256i s10 = _mm256_add_epi32(s00, outer_flag);
+                __m256i s11 = _mm256_or_si256(s01, s10);
+                GATHER8(val00_real, val00_imag, s00)
+                GATHER8(val01_real, val01_imag, s01)
+                GATHER8(val10_real, val10_imag, s10)
+                GATHER8(val11_real, val11_imag, s11)
+                NEW_ZERO_REG(sum00_real)
+                NEW_ZERO_REG(sum00_imag)
+                NEW_ZERO_REG(sum01_real)
+                NEW_ZERO_REG(sum01_imag)
+                NEW_ZERO_REG(sum10_real)
+                NEW_ZERO_REG(sum10_imag)
+                NEW_ZERO_REG(sum11_real)
+                NEW_ZERO_REG(sum11_imag)
+
+                for (int k = 0; k < numErrors; k++) {
+                    cpx (*e)[2] = hostGates[i].errs_control[k];
+                    LD_REG(e00_real, e00_imag, e[0][0]);
+                    LD_REG(e01_real, e01_imag, e[0][1]);
+                    LD_REG(e10_real, e10_imag, e[1][0]);
+                    LD_REG(e11_real, e11_imag, e[1][1]);
+                    CALC_AB_ADD_CD(w00_real, w00_imag, e00_real, e00_imag, val00_real, val00_imag, e01_real, e01_imag, val10_real, val10_imag);
+                    CALC_AB_ADD_CD(w01_real, w01_imag, e00_real, e00_imag, val01_real, val01_imag, e01_real, e01_imag, val11_real, val11_imag);
+                    CALC_AB_ADD_CD(w10_real, w10_imag, e10_real, e10_imag, val00_real, val00_imag, e11_real, e11_imag, val10_real, val10_imag);
+                    CALC_AB_ADD_CD(w11_real, w11_imag, e10_real, e10_imag, val01_real, val01_imag, e11_real, e11_imag, val11_real, val11_imag);
+                    CALC_ADD_AB_ADD_CD_NT(sum00_real, sum00_imag, w00_real, w00_imag, e00_real, e00_imag, w01_real, w01_imag, e01_real, e01_imag);
+                    CALC_ADD_AB_ADD_CD_NT(sum01_real, sum01_imag, w00_real, w00_imag, e10_real, e10_imag, w01_real, w01_imag, e11_real, e11_imag);
+                    CALC_ADD_AB_ADD_CD_NT(sum10_real, sum10_imag, w10_real, w10_imag, e00_real, e00_imag, w11_real, w11_imag, e01_real, e01_imag);
+                    CALC_ADD_AB_ADD_CD_NT(sum11_real, sum11_imag, w10_real, w10_imag, e10_real, e10_imag, w11_real, w11_imag, e11_real, e11_imag);
+                }
+                SCATTER8(sum00_real, sum00_imag, s00);
+                SCATTER8(sum01_real, sum01_imag, s01);
+                SCATTER8(sum10_real, sum10_imag, s10);
+                SCATTER8(sum11_real, sum11_imag, s11);
+                idx = _mm256_add_epi32(idx, inc);
+            }
+#else
             int mask_inner = (1 << (local2 - 2)) - (1 << qid);
             for (int j = 0; j < m; j++) {
                 int s00 = j + (j & mask_inner) * 3;
@@ -216,6 +548,7 @@ inline void apply_gate_group(value_t* local_real, value_t* local_imag, int numGa
                 CPXS(s10, sum10)
                 CPXS(s11, sum11)
             }
+#endif
         }
     }
 #else
