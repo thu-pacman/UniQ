@@ -679,6 +679,7 @@ void apply_error(cpx* buffer, int qid, cpx (*ee)[2][2], int err_len, int local2)
 case GateType::TYPE: // no break
 
 void CpuDMExecutor::launchPerGateGroupDM(std::vector<Gate>& gates, KernelGate hostGates[], const State& state, idx_t relatedQubits, int numLocalQubits) {
+#if MODE == 2
     int local2 = numLocalQubits * 2;
     #pragma omp parallel
     for (int i = 0; i < int(gates.size()); i++) {
@@ -746,6 +747,7 @@ void CpuDMExecutor::launchPerGateGroupDM(std::vector<Gate>& gates, KernelGate ho
             apply_error(deviceStateVec[0], qid * 2, gate.errs_control, gate.err_len_control, local2);
         }
     }
+#endif
 }
 
 #endif

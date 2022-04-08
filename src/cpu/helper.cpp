@@ -20,7 +20,7 @@ void initCpu() {
 
 void initState(std::vector<cpx*> &deviceStateVec, int numQubits) {
     size_t size = (sizeof(cpx) << numQubits) >> MyGlobalVars::bit;
-    if ((MyGlobalVars::numGPUs > 1 && !INPLACE) || GPU_BACKEND == 3 || GPU_BACKEND == 4 || MODE == 1) {
+    if ((MyGlobalVars::numGPUs > 1 && !INPLACE) || GPU_BACKEND == 3 || GPU_BACKEND == 4) {
         size <<= 1;
     }
 #if INPLACE

@@ -560,7 +560,7 @@ void Circuit::duplicate_conj() {
 
 void Circuit::masterCompile() {
     Logger::add("Total Gates %d", int(gates.size()));
-#if GPU_BACKEND != 2
+#if GPU_BACKEND != 2 || ENABLE_TRANSFORM
     this->transform();
 #endif
 #if GPU_BACKEND == 1 || GPU_BACKEND == 2 || GPU_BACKEND == 3 || GPU_BACKEND == 4 || GPU_BACKEND == 5
