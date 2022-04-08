@@ -73,6 +73,9 @@ void initCuttPlans(std::vector<cuttHandle*>& transPlanPointers, const std::vecto
             checkCuttErrors(cuttActivatePlan(transPlanPointers[i] + g, plans[i], MyGlobalVars::streams[g], g));
         }
     }
+    for (int g = 0; g < MyGlobalVars::localGPUs; g++) {
+        checkCudaErrors(cudaDeviceSynchronize());
+    }
 }
 
 }

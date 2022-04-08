@@ -226,7 +226,7 @@ LocalGroup SimpleCompiler::run() {
         if (whiteList != 0)
             break;
         cnt ++;
-        assert(cnt < 1000);
+        // assert(cnt < 1000);
     }
     return lg;
 }

@@ -412,7 +412,7 @@ __device__ void doCompute(int numGates, int* loArr, int* shiftAt) {
                     CASE_SINGLE(DIG, DIGSingle(lo, hi, make_cuComplex(deviceGates[i].r00, deviceGates[i].i00), make_cuComplex(deviceGates[i].r11, deviceGates[i].i11)))
                     ID_BREAK()
                     default: {
-                        printf("gate type %d\n", deviceGates[i].type);
+                        // printf("gate type %d\n", deviceGates[i].type);
                         assert(false);
                     }
                 }

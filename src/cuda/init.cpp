@@ -103,6 +103,10 @@ void initCudaObjects() {
         }
         checkNCCLErrors(ncclGroupEnd());
     #endif
+    for (int i = 0; i < MyGlobalVars::localGPUs; i++) {
+        checkCudaErrors(cudaSetDevice(i));
+        checkCudaErrors(cudaDeviceSynchronize());
+    }
 }
 
 }
