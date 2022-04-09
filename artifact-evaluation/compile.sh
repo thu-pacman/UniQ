@@ -1,9 +1,10 @@
 #!/bin/bash
 set -u
 set -e
+set -x
 
-mkdir -p $HYQUAS_ROOT/build
-cd $HYQUAS_ROOT/build
+mkdir -p ../build
+cd ../build
 rm CMakeCache.txt || true
 cmake $* ..
 make clean

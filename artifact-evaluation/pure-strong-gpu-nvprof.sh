@@ -6,7 +6,7 @@ mkdir -p $root_name
 
 export input_dir="../../tests/input"
 export std_dir="../../tests/output-pure"
-export tests="bv_13 efficient_su2_11 iqp_14 hidden_shift_12 qaoa_14 qft_13 supremacy_12"
+export tests="bv_13 efficient_su2_11 hidden_shift_12 iqp_14 qaoa_14 qft_13 supremacy_12"
 
 ./compile.sh -DSHOW_SUMMARY=on -DSHOW_SCHEDULE=off -DUSE_DOUBLE=on -DEVALUATOR_PREPROCESS=off -DENABLE_OVERLAP=off -DUSE_MPI=off -DDISABLE_ASSERT=on -DMAT=7 -DGPU_BACKEND=group -DMODE=densitypure
 

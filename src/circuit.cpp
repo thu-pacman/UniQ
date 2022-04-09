@@ -881,11 +881,13 @@ inline bool eps_equal(cpx a, cpx b) {
 void Circuit::transform() {
     bool *erased = new bool[gates.size()];
     memset(erased, 0, sizeof(bool) * gates.size());
+#ifdef ENABLE_TRANSFORM
 #if MODE != 2
     hczh2cx(this->gates, numQubits, erased);
     single_qubit_fusion(this->gates, numQubits, erased);
 #else
     single_error_fusion(this->gates, numQubits, erased);
+#endif
 #endif
     std::vector<Gate> new_gates;
     for (int i = 0; i < (int) gates.size(); i++)
