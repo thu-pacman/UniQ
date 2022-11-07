@@ -18,5 +18,10 @@ mkdir -p $name
 MPIRUN_CONFIG="`which mpirun` -n 2 -npernode 1 --bind-to none -x OMP_NUM_THREADS=64 `pwd`/bind.sh"
 MPIRUN_CONFIG=$MPIRUN_CONFIG ./check_wrapper.sh $name 2>&1 | tee $name/std.out
 
+name=$root_name/4node
+mkdir -p $name
+MPIRUN_CONFIG="`which mpirun` -n 4 -npernode 1 --bind-to none -x OMP_NUM_THREADS=64 `pwd`/bind.sh"
+MPIRUN_CONFIG=$MPIRUN_CONFIG ./check_wrapper.sh $name 2>&1 | tee $name/std.out
+
 echo "Summary:"
-grep -r "Logger\[0\]: Time Cost" $root_name/*/*.log | tee fig14_uniq.log
+grep -r "Logger\[0\]: Time Cost" $root_name/*/*.log | tee fig11_uniq.log

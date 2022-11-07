@@ -21,5 +21,5 @@ export CUDA_VISIBLE_DEVICES=0,1,2,3
 MPIRUN_CONFIG="" ./check_wrapper.sh $name  2>&1 | tee $name/std.out
 
 echo "Summary:"
-grep -r "Compile Time" $root_name/1gpu-cpy/*.log | tee fig11_uniq.log
-grep -r "Time Cost" $root_name/*/*.log | tee -a fig11_uniq.log
+grep -r "Compile Time" $root_name/1gpu-cpy/*.log | tee fig12_uniq.log
+grep -r "Time Cost" $root_name/*/*.log | tee -a fig12_uniq.log
