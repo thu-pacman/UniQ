@@ -4,6 +4,13 @@ UniQ is a unified programming model for efficient quantum circuit simulation. It
 ## Reproduce Our Results
 We have provided dockers on CPU and GPU for reproducing our results. The docker images are available at [https://doi.org/10.5281/zenodo.6628189](https://doi.org/10.5281/zenodo.6628189). The code inside the docker images is available at [https://doi.org/10.5281/zenodo.6628201](https://doi.org/10.5281/zenodo.6628201)
 
+# Get the Source Code
+Use the following command to clone UniQ and its submodules:
+
+`git clone https://github.com/thu-pacman/UniQ.git --recursive`
+
+Files in `tests/` are saved with git lfs. Please ensure these files are downloaded.
+
 ## Usage of UniQ
 UniQ needs to be recompiled (by `./compile.sh -Dxxxx=xxxx` in artifact-evaluation folder) to support different simulation methods and hardware.
 
