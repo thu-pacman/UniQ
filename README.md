@@ -33,4 +33,14 @@ For the full commands, please refer to artifact-evaluation folder. These scripts
 * Fig.16: dm-cpu.sh
 
 ## Citation
-If you find UniQ useful for your research, please cite our paper: TODO
+If you find UniQ useful for your research, please cite our paper:
+```
+@inproceedings{zhang2022uniq,
+  title={UniQ: A Unified Programming Model for Efficient Quantum Circuit Simulation},
+  author={Zhang, Chen and Wang, Haojie and Ma, Zixuan and Xie, Lei and Song, Zeyu and Zhai, Jidong},
+  booktitle={2022 SC22: International Conference for High Performance Computing, Networking, Storage and Analysis (SC)},
+  pages={692--707},
+  year={2022},
+  organization={IEEE Computer Society}
+}
+```
