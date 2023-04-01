@@ -2,7 +2,7 @@
 UniQ is a unified programming model for efficient quantum circuit simulation. It supports state vector simulation, density matrix simulation by gates, and density matrix simulation by Kraus operators on various hardware. UniQ can accelerate quantum circuit simulation by up to 28.59× (4.47× on average) over state-of-the-art frameworks, and successfully scale to 399,360 cores on 1,024 nodes.
 
 ## Reproduce Our Results
-We have provided dockers on CPU and GPU for reproducing our results. The docker images are available at [https://doi.org/10.5281/zenodo.6628189](https://doi.org/10.5281/zenodo.6628189). The code inside the docker images is available at [https://doi.org/10.5281/zenodo.6628201](https://doi.org/10.5281/zenodo.6628201)
+We have provided dockers on CPU and GPU for reproducing our results. The docker images are available at [https://doi.org/10.5281/zenodo.6628189](https://doi.org/10.5281/zenodo.6628189). The full code for reproducing the experiments, including Dockerfile and scripts for running the baselines, are available at  [https://doi.org/10.5281/zenodo.6628201](https://doi.org/10.5281/zenodo.6628201). Please find the guideline of using these scripts from the artifact appendix of our paper.
 
 # Get the Source Code
 Use the following command to clone UniQ and its submodules:
